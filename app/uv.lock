@@ -11,6 +11,7 @@ name = "ai-agent"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "azure-search-documents" },
     { name = "azure-storage-blob" },
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
@@ -37,6 +38,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "azure-search-documents", specifier = ">=11.5.3" },
     { name = "azure-storage-blob", specifier = ">=12.26.0" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.116.1" },
@@ -181,6 +183,15 @@ wheels = [
 ]
 
 [[package]]
+name = "azure-common"
+version = "1.1.28"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/71/f6f71a276e2e69264a97ad39ef850dca0a04fce67b12570730cb38d0ccac/azure-common-1.1.28.zip", hash = "sha256:4ac0cd3214e36b6a1b6a442686722a5d8cc449603aa833f3f0f40bda836704a3", size = 20914, upload-time = "2022-02-03T19:39:44.373Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/55/7f118b9c1b23ec15ca05d15a578d8207aa1706bc6f7c87218efffbbf875d/azure_common-1.1.28-py2.py3-none-any.whl", hash = "sha256:5c12d3dcf4ec20599ca6b0d3e09e86e146353d443e7fcc050c9a19c1f9df20ad", size = 14462, upload-time = "2022-02-03T19:39:42.417Z" },
+]
+
+[[package]]
 name = "azure-core"
 version = "1.35.0"
 source = { registry = "https://pypi.org/simple" }
@@ -192,6 +203,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ce/89/f53968635b1b2e53e4aad2dd641488929fef4ca9dfb0b97927fa7697ddf3/azure_core-1.35.0.tar.gz", hash = "sha256:c0be528489485e9ede59b6971eb63c1eaacf83ef53001bfe3904e475e972be5c", size = 339689, upload-time = "2025-07-03T00:55:23.496Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d4/78/bf94897361fdd650850f0f2e405b2293e2f12808239046232bdedf554301/azure_core-1.35.0-py3-none-any.whl", hash = "sha256:8db78c72868a58f3de8991eb4d22c4d368fae226dac1002998d6c50437e7dad1", size = 210708, upload-time = "2025-07-03T00:55:25.238Z" },
+]
+
+[[package]]
+name = "azure-search-documents"
+version = "11.5.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "azure-common" },
+    { name = "azure-core" },
+    { name = "isodate" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fd/11/9ecde2bd9e6c00cc0e3f312ab096a33d333f8ba40c847f01f94d524895fe/azure_search_documents-11.5.3.tar.gz", hash = "sha256:6931149ec0db90485d78648407f18ea4271420473c7cb646bf87790374439989", size = 300353, upload-time = "2025-06-25T16:48:58.924Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/f5/0f6b52567cbb33f1efba13060514ed7088a86de84d74b77cda17d278bcd9/azure_search_documents-11.5.3-py3-none-any.whl", hash = "sha256:110617751c6c8bd50b1f0af2b00a478bd4fbaf4e2f0387e3454c26ec3eb433d6", size = 298772, upload-time = "2025-06-25T16:49:00.764Z" },
 ]
 
 [[package]]

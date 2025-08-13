@@ -16,6 +16,7 @@ dependencies = [
     "psutil>=5.9.0",
     "langchain-community>=0.3.27",
     "azure-storage-blob>=12.26.0",
+    "azure-search-documents>=11.5.3",
 ]
 
 [project.optional-dependencies]
