@@ -22,7 +22,10 @@ from langchain.schema import Document
 import os
 from azure.storage.blob import BlobServiceClient
 from azure.ai.documentintelligence import DocumentIntelligenceClient
-from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, ContentFormat
+from azure.ai.documentintelligence.models import (
+    AnalyzeDocumentRequest,
+    DocumentContentFormat,
+)
 from azure.core.credentials import AzureKeyCredential
 from azure.identity import DefaultAzureCredential
 import traceback
@@ -78,7 +81,7 @@ def process_document_with_intelligence(blob_name, blob_data):
         poller = document_intelligence_client.begin_analyze_document(
             "prebuilt-read",
             analyze_request,
-            output_content_format=ContentFormat.MARKDOWN,
+            output_content_format=DocumentContentFormat.MARKDOWN,
         )
         result = poller.result()
 
