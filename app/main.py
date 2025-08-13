@@ -13,13 +13,12 @@ try:
 except ImportError:
     key_vault_client = None
 
-from app.api import router as api_router
-from app.core.config import settings
+from .api import router as api_router
+from .core.config import settings
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -50,6 +49,7 @@ async def root():
     """Root endpoint"""
     return {"message": "Welcome to AI Agent API", "version": settings.PROJECT_VERSION}
 
+@app.add_api_route("/indexer", methods=["GET"])
 
 @app.get("/health")
 async def health_check():
@@ -63,5 +63,5 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level="info"
+        log_level="info",
     )
