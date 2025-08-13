@@ -1,14 +1,30 @@
+"""
+Web Crawler and Document Indexer using Azure Document Intelligence
+
+This module processes documents from Azure Blob Storage using Azure Document Intelligence
+for advanced document parsing and analysis, then indexes them in Azure AI Search.
+
+Required Environment Variables:
+- AZURE_STORAGE_ACCOUNT_NAME: Azure Storage Account name
+- AZURE_STORAGE_ACCOUNT_KEY: Azure Storage Account access key
+- AZURE_STORAGE_CONTAINER_NAME: Container name containing documents
+- AZURE_SEARCH_ENDPOINT: Azure AI Search service endpoint
+- AZURE_SEARCH_ADMIN_KEY: Azure AI Search admin key
+- AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: Document Intelligence service endpoint
+- AZURE_DOCUMENT_INTELLIGENCE_KEY: Document Intelligence service key (optional if using managed identity)
+"""
+
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_community.vectorstores.azuresearch import AzureSearch
-from langchain.document_loaders import (
-    PyPDFLoader,
-    WebBaseLoader,
-)  # Add more loaders as needed
+from langchain.document_loaders import WebBaseLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import Document
 import os
-import glob
 from azure.storage.blob import BlobServiceClient
-from langchain_community.document_loaders import AzureBlobStorageFileLoader
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, ContentFormat
+from azure.core.credentials import AzureKeyCredential
+from azure.identity import DefaultAzureCredential
 import traceback
 
 
@@ -20,6 +36,21 @@ blob_service_client = BlobServiceClient.from_connection_string(
 container_client = blob_service_client.get_container_client(
     os.getenv("AZURE_STORAGE_CONTAINER_NAME")
 )
+
+# Initialize Document Intelligence client
+document_intelligence_endpoint = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+document_intelligence_key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
+
+# Use key-based authentication if available, otherwise use DefaultAzureCredential
+if document_intelligence_key:
+    document_intelligence_client = DocumentIntelligenceClient(
+        endpoint=document_intelligence_endpoint,
+        credential=AzureKeyCredential(document_intelligence_key),
+    )
+else:
+    document_intelligence_client = DocumentIntelligenceClient(
+        endpoint=document_intelligence_endpoint, credential=DefaultAzureCredential()
+    )
 # Load environment variables (use dotenv if preferred)
 embeddings = AzureOpenAIEmbeddings(
     azure_deployment="text-embedding-3-large",  # Deploy this embedding model in Azure OpenAI if not already (similar to GPT deployment)
@@ -33,6 +64,42 @@ vector_store = AzureSearch(
     search_type="hybrid",  # Enables vector + keyword
 )
 
+
+def process_document_with_intelligence(blob_name, blob_data):
+    """
+    Process a document using Azure Document Intelligence
+    Returns a Document object with the extracted content
+    """
+    try:
+        # Create the request with the blob data
+        analyze_request = AnalyzeDocumentRequest(bytes_source=blob_data)
+
+        # Use the prebuilt-read model for general document reading
+        poller = document_intelligence_client.begin_analyze_document(
+            "prebuilt-read",
+            analyze_request,
+            output_content_format=ContentFormat.MARKDOWN,
+        )
+        result = poller.result()
+
+        # Extract the content
+        content = result.content if result.content else ""
+
+        # Create a Document object
+        return Document(
+            page_content=content,
+            metadata={
+                "source": blob_name,
+                "processed_with": "azure_document_intelligence",
+            },
+        )
+    except Exception as e:
+        print(
+            f"Error processing document {blob_name} with Document Intelligence: {str(e)}"
+        )
+        return None
+
+
 def start_indexing():
     try:
         # Load and chunk documents
@@ -41,27 +108,27 @@ def start_indexing():
 
         for blob in container_client.list_blobs():
             try:
-                if blob.name.endswith(".pdf"):
-                    print(f"Loading PDF: {blob.name}")
-                    loader = AzureBlobStorageFileLoader(
-                        conn_str=AZURE_STORAGE_CONNECTION_STRING,
-                        container=os.getenv("AZURE_STORAGE_CONTAINER_NAME"),
-                        blob_name=blob.name,
-                    )
-                    docs.extend(loader.load())
-                    print(f"Successfully loaded PDF: {blob.name}")
-                elif blob.name.endswith(".html") or blob.name.endswith(".txt"):
-                    print(f"Loading file: {blob.name}")
-                    # Use the same loader or WebBaseLoader if it's a URL, but since it's blob, use file loader
-                    loader = AzureBlobStorageFileLoader(
-                        conn_str=AZURE_STORAGE_CONNECTION_STRING,
-                        container=os.getenv("AZURE_STORAGE_CONTAINER_NAME"),
-                        blob_name=blob.name,
-                    )
-                    docs.extend(loader.load())
-                    print(f"Successfully loaded file: {blob.name}")
+                # Get the blob data
+                blob_client = container_client.get_blob_client(blob.name)
+                blob_data = blob_client.download_blob().readall()
+
+                if blob.name.endswith((".pdf", ".docx", ".doc", ".txt", ".html")):
+                    print(f"Processing document: {blob.name}")
+
+                    # Use Document Intelligence to process the document
+                    document = process_document_with_intelligence(blob.name, blob_data)
+
+                    if document:
+                        docs.append(document)
+                        print(f"Successfully processed document: {blob.name}")
+                    else:
+                        print(f"Failed to process document: {blob.name}")
+
+                else:
+                    print(f"Skipping unsupported file type: {blob.name}")
+
             except Exception as blob_error:
-                print(f"Error loading blob {blob.name}: {str(blob_error)}")
+                print(f"Error processing blob {blob.name}: {str(blob_error)}")
                 print(f"Blob error type: {type(blob_error).__name__}")
                 continue
 
