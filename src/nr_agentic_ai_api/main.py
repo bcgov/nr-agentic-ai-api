@@ -12,6 +12,8 @@ from langchain.agents import create_react_agent
 from langchain.agents import AgentExecutor
 from langchain.tools import BaseTool
 from langchain.prompts import PromptTemplate
+from langgraph.graph import StateGraph, END
+from typing import TypedDict, Annotated
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 
@@ -90,15 +92,53 @@ class AISearchTool(BaseTool):
         return self._run(query)
 
 
-# Create the orchestrator agent
-tools = [AISearchTool()]
-prompt = PromptTemplate.from_template(
-    "You are an orchestrator agent. Use the available tools to process the "
+# Create the Land agent
+land_tools = [AISearchTool()]
+land_prompt = PromptTemplate.from_template(
+    "You are a Land agent. Use the available tools to process the "
     "user's request.\n\nUser request: {input}\n\n{agent_scratchpad}"
 )
 
-agent = create_react_agent(llm, tools, prompt)
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+land_agent = create_react_agent(llm, land_tools, land_prompt)
+land_agent_executor = AgentExecutor(agent=land_agent, tools=land_tools, verbose=True)
+
+# Create the orchestrator agent (without tools)
+orchestrator_prompt = PromptTemplate.from_template(
+    "You are an orchestrator agent. Delegate the user's request to the Land agent.\n\n"
+    "User request: {input}\n\n"
+    "Simply acknowledge that you will delegate this to the Land agent."
+)
+
+orchestrator_agent = create_react_agent(llm, [], orchestrator_prompt)
+orchestrator_executor = AgentExecutor(agent=orchestrator_agent, tools=[], verbose=True)
+
+# Define workflow state
+class WorkflowState(TypedDict):
+    input: str
+    orchestrator_output: str
+    land_output: str
+
+# Define workflow nodes
+def orchestrator_node(state: WorkflowState) -> WorkflowState:
+    """Orchestrator node that delegates to Land agent"""
+    result = orchestrator_executor.invoke({"input": state["input"]})
+    return {"orchestrator_output": result["output"]}
+
+def land_node(state: WorkflowState) -> WorkflowState:
+    """Land node that processes the request with tools"""
+    result = land_agent_executor.invoke({"input": state["input"]})
+    return {"land_output": result["output"]}
+
+# Create the workflow
+workflow = StateGraph(WorkflowState)
+workflow.add_node("orchestrator", orchestrator_node)
+workflow.add_node("land", land_node)
+workflow.set_entry_point("orchestrator")
+workflow.add_edge("orchestrator", "land")
+workflow.add_edge("land", END)
+
+# Compile the workflow
+app_workflow = workflow.compile()
 
 
 # Form field model for the JSON array
@@ -149,15 +189,14 @@ async def process_request(request: RequestModel):
     This endpoint uses the orchestrator agent to process incoming requests.
     """
     try:
-        # Use the orchestrator agent to process the request
-        agent_response = await agent_executor.ainvoke(
-            {"input": request.message}
-        )
+        # Use the LangGraph workflow to process the request
+        workflow_result = app_workflow.invoke({"input": request.message})
         
-        # Process the request with agent response
+        # Process the request with workflow results
         processed_data = {
             "received_message": request.message,
-            "agent_response": agent_response["output"],
+            "orchestrator_output": workflow_result["orchestrator_output"],
+            "land_output": workflow_result["land_output"],
             "received_form_fields": request.formFields,
             "received_data": request.data,
             "received_metadata": request.metadata,
