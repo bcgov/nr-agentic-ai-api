@@ -1,0 +1,12 @@
+uv.lock
+.env
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+.vscode
+.idea
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
