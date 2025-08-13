@@ -2,10 +2,10 @@
 Main FastAPI application with POST endpoint backbone
 """
 
+from typing import Any, Dict, Optional, List
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Any, Dict, Optional
-
 # Initialize FastAPI app
 app = FastAPI(
     title="NR Agentic AI API",
@@ -16,10 +16,20 @@ app = FastAPI(
 )
 
 
+# Form field model for the JSON array
+class FormField(BaseModel):
+    """Model for individual form fields"""
+    data_id: str = None
+    fieldLabel: str = None
+    fieldType: str = None
+    fieldValue: str = None
+
+
 # Base request model for POST endpoint
 class RequestModel(BaseModel):
     """Base request model for the POST endpoint"""
     message: str
+    formFields: Optional[List[FormField]] = None
     data: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
 
@@ -55,25 +65,31 @@ async def process_request(request: RequestModel):
     and can be extended with specific processing logic.
     """
     try:
-        # Basic request processing - this is where you can add your specific logic
-        # For now, just echo back the request with a timestamp
-        
-        from datetime import datetime
-        timestamp = datetime.utcnow().isoformat()
+        # Print the form fields data
+        if request.formFields:
+            print("=== FORM FIELDS DATA ===")
+            for i, field in enumerate(request.formFields):
+                print(f"Field {i + 1}:")
+                print(f"  data-id: {field.data_id}")
+                print(f"  fieldLabel: {field.fieldLabel}")
+                print(f"  fieldType: {field.fieldType}")
+                print(f"  fieldValue: {field.fieldValue}")
+                print()
         
         # Process the request (placeholder for actual processing logic)
         processed_data = {
             "received_message": request.message,
+            "received_form_fields": request.formFields,
             "received_data": request.data,
             "received_metadata": request.metadata,
-            "processed_at": timestamp
+            "processed_at": datetime.now().isoformat()
         }
         
         return ResponseModel(
             status="success",
             message="Request processed successfully",
             data=processed_data,
-            timestamp=timestamp
+            timestamp=datetime.now().isoformat()
         )
         
     except Exception as e:
