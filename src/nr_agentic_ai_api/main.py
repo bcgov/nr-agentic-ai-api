@@ -3,7 +3,7 @@ Main FastAPI application with POST endpoint backbone
 """
 
 import os
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, TypedDict
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -13,9 +13,11 @@ from langchain.agents import AgentExecutor
 from langchain.tools import BaseTool
 from langchain.prompts import PromptTemplate
 from langgraph.graph import StateGraph, END
-from typing import TypedDict, Annotated
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -38,28 +40,28 @@ llm = AzureChatOpenAI(
 class AISearchTool(BaseTool):
     """Tool for searching and retrieving data from AI Search index."""
     
-    name = "ai_search_tool"
-    description = (
+    name: str = "ai_search_tool"
+    description: str = (
         "A tool that searches and retrieves data from AI Search index"
     )
+    search_client: Optional[SearchClient] = None
     
     def __init__(self):
         super().__init__()
         
-        self.search_endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT")
-        self.search_key = os.environ.get("AZURE_SEARCH_KEY")
-        self.index_name = os.environ.get("AZURE_SEARCH_INDEX_NAME")
+        # Get environment variables
+        search_endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT")
+        search_key = os.environ.get("AZURE_SEARCH_KEY")
+        index_name = os.environ.get("AZURE_SEARCH_INDEX_NAME")
         
-        if (self.search_endpoint and self.search_key and
-                self.index_name):
-            self.credential = AzureKeyCredential(self.search_key)
+        # Initialize search client if environment variables are set
+        if search_endpoint and search_key and index_name:
+            credential = AzureKeyCredential(search_key)
             self.search_client = SearchClient(
-                endpoint=self.search_endpoint,
-                index_name=self.index_name,
-                credential=self.credential
+                endpoint=search_endpoint,
+                index_name=index_name,
+                credential=credential
             )
-        else:
-            self.search_client = None
     
     def _run(self, query: str, run_manager=None) -> str:
         if not self.search_client:
@@ -96,34 +98,47 @@ class AISearchTool(BaseTool):
 land_tools = [AISearchTool()]
 land_prompt = PromptTemplate.from_template(
     "You are a Land agent. Use the available tools to process the "
-    "user's request.\n\nUser request: {input}\n\n{agent_scratchpad}"
+    "user's request.\n\nUser request: {input}\n\n"
+    "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
 )
 
 land_agent = create_react_agent(llm, land_tools, land_prompt)
-land_agent_executor = AgentExecutor(agent=land_agent, tools=land_tools, verbose=True)
+land_agent_executor = AgentExecutor(
+    agent=land_agent, tools=land_tools, verbose=True
+    )
 
 # Create the Water agent
 water_tools = [AISearchTool()]
 water_prompt = PromptTemplate.from_template(
     "You are a Water agent. Use the available tools to process the "
-    "user's request.\n\nUser request: {input}\n\n{agent_scratchpad}"
+    "user's request.\n\nUser request: {input}\n\n"
+    "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
 )
 
 water_agent = create_react_agent(llm, water_tools, water_prompt)
-water_agent_executor = AgentExecutor(agent=water_agent, tools=water_tools, verbose=True)
+water_agent_executor = AgentExecutor(
+    agent=water_agent, tools=water_tools, verbose=True
+    )
 
 # Create the orchestrator agent (without tools)
 orchestrator_prompt = PromptTemplate.from_template(
-    "You are an orchestrator agent. Delegate the user's request to the Land and Water agents.\n\n"
-    "User request: {input}\n\n"
-    "Simply acknowledge that you will delegate this to the Land and Water agents."
+    "You are an orchestrator agent. Delegate the user's request to the "
+    "Land and Water agents.\n\nUser request: {input}\n\n"
+    "Available tools: {tools}\n\nTool names: {tool_names}\n\n"
+    "Simply acknowledge that you will delegate this to the Land and Water agents.\n\n"
+    "{agent_scratchpad}"
 )
 
 orchestrator_agent = create_react_agent(llm, [], orchestrator_prompt)
-orchestrator_executor = AgentExecutor(agent=orchestrator_agent, tools=[], verbose=True)
+orchestrator_executor = AgentExecutor(
+    agent=orchestrator_agent, tools=[], verbose=True
+    )
+
 
 # Define workflow state
 class WorkflowState(TypedDict):
+    """State structure for the LangGraph workflow."""
+    
     input: str
     orchestrator_output: str
     land_output: str
