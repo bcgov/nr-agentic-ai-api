@@ -12,7 +12,9 @@ from langchain.tools import BaseTool
 from langchain_openai import AzureChatOpenAI
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel
+import structlog
 
+logger = structlog.get_logger()
 load_dotenv()
 
 
@@ -194,9 +196,11 @@ async def process_request(request: RequestModel):
     This endpoint uses the orchestrator agent to process incoming requests.
     """
     try:
+        logger.info("Processing request", request=request)
+
         # Use the LangGraph workflow to process the request
         workflow_result = app_workflow.invoke({"input": request.message})
-
+        logger.info("Workflow result", result=workflow_result)
         # Process the request with workflow results
         processed_data = {
             "received_message": request.message,
@@ -217,6 +221,18 @@ async def process_request(request: RequestModel):
         )
 
     except Exception as e:
+        logger.error(
+            "Error processing orchestrator request",
+            error=str(e),
+            error_type=type(e).__name__,
+            request_message=request.message,
+            form_fields_count=len(request.formFields) if request.formFields else 0,
+            has_data=bool(request.data),
+            has_metadata=bool(request.metadata),
+            timestamp=datetime.now().isoformat(),
+            exc_info=True,
+        )
+
         raise HTTPException(
             status_code=500, detail=(f"Error processing request: {str(e)}")
         )
