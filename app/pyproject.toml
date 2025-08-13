@@ -18,8 +18,10 @@ dependencies = [
     "azure-storage-blob>=12.26.0",
     "azure-search-documents>=11.5.3",
     "azure-identity>=1.24.0",
-    "unstructured[all-docs]>=0.18.11",
     "beautifulsoup4>=4.13.4",
+    "pdf2image>=1.17.0",
+    "pytesseract>=0.3.13",
+    "unstructured[pdf]>=0.18.11",
 ]
 
 [project.optional-dependencies]
