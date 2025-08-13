@@ -12,6 +12,8 @@ from langchain.agents import create_react_agent
 from langchain.agents import AgentExecutor
 from langchain.tools import BaseTool
 from langchain.prompts import PromptTemplate
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents import SearchClient
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -30,20 +32,66 @@ llm = AzureChatOpenAI(
 )
 
 
-# Create a simple tool for demonstration
-class SimpleTool(BaseTool):
-    name = "simple_tool"
-    description = "A simple tool that returns the input message"
+# Create a tool for reading data from AI search index
+class AISearchTool(BaseTool):
+    """Tool for searching and retrieving data from AI Search index."""
     
-    def _run(self, message: str) -> str:
-        return f"Processed: {message}"
+    name = "ai_search_tool"
+    description = (
+        "A tool that searches and retrieves data from AI Search index"
+    )
     
-    async def _arun(self, message: str) -> str:
-        return self._run(message)
+    def __init__(self):
+        super().__init__()
+        
+        self.search_endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT")
+        self.search_key = os.environ.get("AZURE_SEARCH_KEY")
+        self.index_name = os.environ.get("AZURE_SEARCH_INDEX_NAME")
+        
+        if (self.search_endpoint and self.search_key and
+                self.index_name):
+            self.credential = AzureKeyCredential(self.search_key)
+            self.search_client = SearchClient(
+                endpoint=self.search_endpoint,
+                index_name=self.index_name,
+                credential=self.credential
+            )
+        else:
+            self.search_client = None
+    
+    def _run(self, query: str, run_manager=None) -> str:
+        if not self.search_client:
+            return (
+                "Azure Search not configured."
+            )
+        
+        try:
+            # Search the index
+            search_results = self.search_client.search(
+                search_text=query,
+                select=["*"],
+                top=5
+            )
+            
+            # Process results
+            results = []
+            for result in search_results:
+                results.append(dict(result))
+            
+            if not results:
+                return (
+                    f"No results found for query '{query}'"
+                )
+                
+        except Exception as e:
+            return f"Error searching index: {str(e)}"
+    
+    async def _arun(self, query: str) -> str:
+        return self._run(query)
 
 
 # Create the orchestrator agent
-tools = [SimpleTool()]
+tools = [AISearchTool()]
 prompt = PromptTemplate.from_template(
     "You are an orchestrator agent. Use the available tools to process the "
     "user's request.\n\nUser request: {input}\n\n{agent_scratchpad}"
