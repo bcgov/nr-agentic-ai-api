@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "AI Agent API built with FastAPI and LangChain"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.116.1",
+    "fastapi[standard]>=0.116.1",
     "uvicorn[standard]>=0.30.0",
     "langchain>=0.3.27",
     "langchain-openai>=0.3.28",

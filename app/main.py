@@ -3,18 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import uvicorn
 import logging
+from .api import router as api_router
+from .core.config import settings
 
 # Load environment variables first
 load_dotenv()
 
-# Import Azure Key Vault integration (must be after load_dotenv)
-try:
-    from app.core.azure_keyvault import key_vault_client
-except ImportError:
-    key_vault_client = None
-
-from .api import router as api_router
-from .core.config import settings
 
 # Configure logging
 logging.basicConfig(
@@ -49,19 +43,9 @@ async def root():
     """Root endpoint"""
     return {"message": "Welcome to AI Agent API", "version": settings.PROJECT_VERSION}
 
-@app.add_api_route("/indexer", methods=["GET"])
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
 
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-        log_level="info",
-    )

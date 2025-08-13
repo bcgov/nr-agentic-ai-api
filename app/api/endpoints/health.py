@@ -4,7 +4,7 @@ from datetime import datetime
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/health")
 async def health_check():
     """
     Health check endpoint
@@ -12,7 +12,7 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "AI Agent API"
+        "service": "AI Agent API",
     }
 
 
@@ -23,7 +23,7 @@ async def detailed_health_check():
     """
     import psutil
     import platform
-    
+
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
@@ -33,6 +33,6 @@ async def detailed_health_check():
             "cpu_count": psutil.cpu_count(),
             "memory_total": psutil.virtual_memory().total,
             "memory_available": psutil.virtual_memory().available,
-            "disk_usage": psutil.disk_usage('/').percent
-        }
+            "disk_usage": psutil.disk_usage("/").percent,
+        },
     }
