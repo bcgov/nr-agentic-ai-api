@@ -2,10 +2,17 @@
 Main FastAPI application with POST endpoint backbone
 """
 
+import os
 from typing import Any, Dict, Optional, List
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from langchain_openai import AzureChatOpenAI
+from langchain.agents import create_react_agent
+from langchain.agents import AgentExecutor
+from langchain.tools import BaseTool
+from langchain.prompts import PromptTemplate
+
 # Initialize FastAPI app
 app = FastAPI(
     title="NR Agentic AI API",
@@ -14,6 +21,36 @@ app = FastAPI(
     ),
     version="0.1.0"
 )
+
+# Initialize the Azure OpenAI LLM
+llm = AzureChatOpenAI(
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"],
+    openai_api_version="2024-12-01-preview",
+)
+
+
+# Create a simple tool for demonstration
+class SimpleTool(BaseTool):
+    name = "simple_tool"
+    description = "A simple tool that returns the input message"
+    
+    def _run(self, message: str) -> str:
+        return f"Processed: {message}"
+    
+    async def _arun(self, message: str) -> str:
+        return self._run(message)
+
+
+# Create the orchestrator agent
+tools = [SimpleTool()]
+prompt = PromptTemplate.from_template(
+    "You are an orchestrator agent. Use the available tools to process the "
+    "user's request.\n\nUser request: {input}\n\n{agent_scratchpad}"
+)
+
+agent = create_react_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
 
 # Form field model for the JSON array
@@ -61,24 +98,18 @@ async def process_request(request: RequestModel):
     """
     Main POST endpoint to receive and process requests
     
-    This is the backbone endpoint that will handle incoming requests
-    and can be extended with specific processing logic.
+    This endpoint uses the orchestrator agent to process incoming requests.
     """
     try:
-        # Print the form fields data
-        if request.formFields:
-            print("=== FORM FIELDS DATA ===")
-            for i, field in enumerate(request.formFields):
-                print(f"Field {i + 1}:")
-                print(f"  data-id: {field.data_id}")
-                print(f"  fieldLabel: {field.fieldLabel}")
-                print(f"  fieldType: {field.fieldType}")
-                print(f"  fieldValue: {field.fieldValue}")
-                print()
+        # Use the orchestrator agent to process the request
+        agent_response = await agent_executor.ainvoke(
+            {"input": request.message}
+        )
         
-        # Process the request (placeholder for actual processing logic)
+        # Process the request with agent response
         processed_data = {
             "received_message": request.message,
+            "agent_response": agent_response["output"],
             "received_form_fields": request.formFields,
             "received_data": request.data,
             "received_metadata": request.metadata,
@@ -87,7 +118,7 @@ async def process_request(request: RequestModel):
         
         return ResponseModel(
             status="success",
-            message="Request processed successfully",
+            message="Request processed successfully by orchestrator agent",
             data=processed_data,
             timestamp=datetime.now().isoformat()
         )
