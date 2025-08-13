@@ -102,11 +102,21 @@ land_prompt = PromptTemplate.from_template(
 land_agent = create_react_agent(llm, land_tools, land_prompt)
 land_agent_executor = AgentExecutor(agent=land_agent, tools=land_tools, verbose=True)
 
+# Create the Water agent
+water_tools = [AISearchTool()]
+water_prompt = PromptTemplate.from_template(
+    "You are a Water agent. Use the available tools to process the "
+    "user's request.\n\nUser request: {input}\n\n{agent_scratchpad}"
+)
+
+water_agent = create_react_agent(llm, water_tools, water_prompt)
+water_agent_executor = AgentExecutor(agent=water_agent, tools=water_tools, verbose=True)
+
 # Create the orchestrator agent (without tools)
 orchestrator_prompt = PromptTemplate.from_template(
-    "You are an orchestrator agent. Delegate the user's request to the Land agent.\n\n"
+    "You are an orchestrator agent. Delegate the user's request to the Land and Water agents.\n\n"
     "User request: {input}\n\n"
-    "Simply acknowledge that you will delegate this to the Land agent."
+    "Simply acknowledge that you will delegate this to the Land and Water agents."
 )
 
 orchestrator_agent = create_react_agent(llm, [], orchestrator_prompt)
@@ -117,25 +127,38 @@ class WorkflowState(TypedDict):
     input: str
     orchestrator_output: str
     land_output: str
+    water_output: str
+
 
 # Define workflow nodes
 def orchestrator_node(state: WorkflowState) -> WorkflowState:
-    """Orchestrator node that delegates to Land agent"""
+    """Orchestrator node that delegates to Land and Water agents"""
     result = orchestrator_executor.invoke({"input": state["input"]})
     return {"orchestrator_output": result["output"]}
+
 
 def land_node(state: WorkflowState) -> WorkflowState:
     """Land node that processes the request with tools"""
     result = land_agent_executor.invoke({"input": state["input"]})
     return {"land_output": result["output"]}
 
+
+def water_node(state: WorkflowState) -> WorkflowState:
+    """Water node that processes the request with tools"""
+    result = water_agent_executor.invoke({"input": state["input"]})
+    return {"water_output": result["output"]}
+
+
 # Create the workflow
 workflow = StateGraph(WorkflowState)
 workflow.add_node("orchestrator", orchestrator_node)
 workflow.add_node("land", land_node)
+workflow.add_node("water", water_node)
 workflow.set_entry_point("orchestrator")
 workflow.add_edge("orchestrator", "land")
+workflow.add_edge("orchestrator", "water")
 workflow.add_edge("land", END)
+workflow.add_edge("water", END)
 
 # Compile the workflow
 app_workflow = workflow.compile()
@@ -197,6 +220,7 @@ async def process_request(request: RequestModel):
             "received_message": request.message,
             "orchestrator_output": workflow_result["orchestrator_output"],
             "land_output": workflow_result["land_output"],
+            "water_output": workflow_result["water_output"],
             "received_form_fields": request.formFields,
             "received_data": request.data,
             "received_metadata": request.metadata,
