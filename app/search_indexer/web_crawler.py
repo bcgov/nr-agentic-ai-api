@@ -11,6 +11,7 @@ from azure.storage.blob import BlobServiceClient
 from langchain_community.document_loaders import AzureBlobStorageFileLoader
 import traceback
 
+
 # Environment variables (will be set in Azure Functions later)
 AZURE_STORAGE_CONNECTION_STRING = f"DefaultEndpointsProtocol=https;AccountName={os.getenv('AZURE_STORAGE_ACCOUNT_NAME')};AccountKey={os.getenv('AZURE_STORAGE_ACCOUNT_KEY')};EndpointSuffix=core.windows.net"
 blob_service_client = BlobServiceClient.from_connection_string(
