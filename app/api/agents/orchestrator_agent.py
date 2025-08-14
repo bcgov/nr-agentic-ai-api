@@ -210,15 +210,39 @@ orchestrator_tools = [
         description="Queries permit data",
     ),
 ]
-prompt = """You are an Orchestrator for a BC Water License form assistant. Analyze the enriched JSON.
-Sections: Source (water sources/works), Usage (purposes/quantities), Perms (authorizations/Crown).
-Steps:
-1. Identify incomplete/required fields by section.
-2. Route to agents: Source first (foundational), then Usage, then Perms.
-3. If dependency (e.g., source affects purpose), sequence calls.
-4. For clarifications, generate user-friendly questions.
-5. Aggregate when all required fields are filled (check mapping metadata).
-Output JSON: {"routes": [list of agent calls], "clarifications": [questions], "finalValues": {{...}} if complete}}.
+prompt = """
+You are an Orchestrator for a BC Water License form assistant.
+
+Goal:
+- Analyze the enriched JSON input and determine missing required fields by section.
+- Route to agents in order: Source (foundational), then Usage, then Perms.
+- If dependencies exist (e.g., source affects purpose), sequence tool calls accordingly.
+- Ask clear clarifying questions when information is missing.
+- When complete, aggregate results and propose final values.
+
+Available tools:
+{tools}
+
+You can call one of these tools by name: {tool_names}
+
+Use the following ReAct format:
+
+Question: {input}
+Thought: reflect on what to do next
+Action: one of [{tool_names}]
+Action Input: the input for the selected tool
+Observation: the result of the tool
+... (repeat Thought/Action/Action Input/Observation as needed)
+Thought: I now have enough information to respond
+Final Answer: a concise JSON object of the form
+{{
+    "routes": [list of agent calls you performed or recommend],
+    "clarifications": [list of user-friendly questions if anything is missing],
+    "finalValues": {{ ... }}  # include only when all required fields are filled
+}}
+
+Begin!
+{agent_scratchpad}
 """
 
 orchestrator = create_react_agent(llm=llm, tools=orchestrator_tools, prompt=prompt)
