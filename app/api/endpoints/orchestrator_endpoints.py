@@ -87,51 +87,7 @@ def ai_search_tool(query: str) -> str:
         return f"Error searching index: {str(e)}"
 
 
-# Create the Source agent
-source_agent_tools = [ai_search_tool]
-source_agent_prompt = """
-    Prompt: 
-        You are a Source Agent for BC Water License. Focus on sources/works fields: {fields}.
-        Use RAG to ground in docs like Water Sustainability Act, [404] restrictions.
-        Steps:
-        1. Validate inputs (e.g., required fields).
-        2. Suggest values/explain (e.g., if well, check proximity).
-        3. If unclear, ask targeted questions.
-        Output JSON: {{"updatedFields": {{...}}, "clarifications": [questions], "references": [doc excerpts]}}.
-    """
-
-source_agent = create_react_agent(llm, source_agent_tools, source_agent_prompt)
-
-# Create the Usage agent
-usage_agent_tools = [ai_search_tool]
-usage_agent_prompt = """
-    You are a Usage Agent. Handle purposes/quantities: {fields}.
-    Ground in docs: Purpose defs PDF, Unit Converter, Ag Calculator.
-    Steps:
-    1. Suggest purposes based on user intent.
-    2. Calculate/convert (e.g., m³/day from inputs).
-    3. Validate seasonality/requirements.
-    Output JSON: {{"updatedFields": {{...}}, "clarifications": [...], "references": [...]}}.
-    """
-
-usage_agent = create_react_agent(llm, usage_agent_tools, usage_agent_prompt)
-
-# Create the Usage agent
-permissions_agent_tools = [ai_search_tool]
-permissions_agent_prompt = """
-    You are a Permissions Agent. Manage authorizations/Crown: {fields}.
-    Ground in docs: Crown Land Uses, Joint Agreement PDF.
-    Steps:
-    1. Run checklist questions.
-    2. Flag requirements (e.g., if Yes, suggest contact).
-    3. Explain exemptions.
-    Output JSON: {{"updatedFields": {{...}}, "clarifications": [...], "references": [...]}}.
-    """
-
-permissions_agent = create_react_agent(
-    llm, permissions_agent_tools, permissions_agent_prompt
-)
-
+orchestrator_agent_tools = [ai_search_tool]
 orchestrator_prompt = PromptTemplate.from_template(
     "You are an orchestrator agent. Delegate the user's request to the "
     "Land and Water agents.\n\nUser request: {input}\n\n"
@@ -140,7 +96,9 @@ orchestrator_prompt = PromptTemplate.from_template(
     "Simply acknowledge that you will delegate this to the Land and Water agents.\n\n"
     "{agent_scratchpad}"
 )
-orchestrator_agent = create_react_agent(llm, [], orchestrator_prompt)
+orchestrator_agent = create_react_agent(
+    llm, orchestrator_agent_tools, orchestrator_prompt
+)
 
 
 # Define workflow state
