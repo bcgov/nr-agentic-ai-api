@@ -43,13 +43,11 @@ def _search(
     """
     if not select:
         # Keep projection tight; adjust fields to your index schema.
-        select = ["id", "title", "url", "content"]
+        select = ["*", "title", "url", "content"]
 
     try:
         results = _search_client.search(
-            search_text=query,
-            select=select,
-            top=top,
+            search_text=query, select=["*"], top=top, search_mode="hybrid"
         )
         docs: List[Dict[str, Any]] = []
         for r in results:

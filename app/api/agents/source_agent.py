@@ -45,9 +45,7 @@ def _search(
 
     try:
         results = _search_client.search(
-            search_text=query,
-            select=select,
-            top=top,
+            search_text=query, select=["*"], top=top, search_mode="hybrid"
         )
         docs: List[Dict[str, Any]] = []
         for r in results:
