@@ -18,14 +18,15 @@ search_client = SearchClient(
     index_name=os.getenv("AZURE_SEARCH_INDEX_NAME", "bc-water-index"),
     credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_ADMIN_KEY")),
 )
+AZURE_STORAGE_CONNECTION_STRING = f"DefaultEndpointsProtocol=https;AccountName={os.getenv('AZURE_STORAGE_ACCOUNT_NAME')};AccountKey={os.getenv('AZURE_STORAGE_ACCOUNT_KEY')};EndpointSuffix=core.windows.net"
 blob_service_client = BlobServiceClient.from_connection_string(
-    os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    AZURE_STORAGE_CONNECTION_STRING
 )
 llm = AzureChatOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-    api_version="2023-05-15",
+    api_version="2024-12-01-preview",
 )
 
 
