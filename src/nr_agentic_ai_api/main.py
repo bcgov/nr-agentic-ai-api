@@ -3,20 +3,27 @@ Main FastAPI application with POST endpoint backbone
 """
 
 import os
+import logging
 from typing import Optional, List, TypedDict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from langchain_openai import AzureChatOpenAI
-from langchain.agents import create_react_agent
+from langchain.agents import create_react_agent, AgentExecutor
 from langchain.tools import tool
 from langchain.prompts import PromptTemplate
 from langgraph.graph import StateGraph, END, START
 from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import AzureError
 from azure.search.documents import SearchClient
 from tavily import TavilyClient
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -37,27 +44,29 @@ llm = AzureChatOpenAI(
 
 """Azure AI Search tool implementation using @tool decorator."""
 
-# Lazily initialized search client shared by the tool
-_search_client: Optional[SearchClient] = None
+def _get_search_client() -> Optional[SearchClient]:
+    """Get or lazily initialize the Azure AI Search client.
 
-
-def _init_search_client() -> None:
-    """Initialize the global Azure AI Search client if env vars are present."""
-    global _search_client
-    if _search_client is not None:
-        return
+    Uses a function attribute for caching to avoid module-level globals.
+    Returns None if not configured.
+    """
+    if hasattr(_get_search_client, "_client"):
+        return getattr(_get_search_client, "_client")  # type: ignore[attr-defined]
 
     search_endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT")
     search_key = os.environ.get("AZURE_SEARCH_KEY")
     index_name = os.environ.get("AZURE_SEARCH_INDEX_NAME")
 
+    client: Optional[SearchClient] = None
     if search_endpoint and search_key and index_name:
         credential = AzureKeyCredential(search_key)
-        _search_client = SearchClient(
+        client = SearchClient(
             endpoint=search_endpoint,
             index_name=index_name,
             credential=credential,
         )
+    setattr(_get_search_client, "_client", client)  # type: ignore[attr-defined]
+    return client
 
 
 @tool("ai_search_tool")
@@ -70,16 +79,16 @@ def ai_search_tool(query: str) -> str:
     - AZURE_SEARCH_KEY
     - AZURE_SEARCH_INDEX_NAME
     """
-    _init_search_client()
+    client = _get_search_client()
 
-    if _search_client is None:
+    if client is None:
         return (
             "Azure Search not configured. Please set AZURE_SEARCH_ENDPOINT, "
             "AZURE_SEARCH_KEY, and AZURE_SEARCH_INDEX_NAME."
         )
 
     try:
-        search_results = _search_client.search(
+        search_results = client.search(
             search_text=query,
             select=["*"],
             top=5,
@@ -89,7 +98,7 @@ def ai_search_tool(query: str) -> str:
             return f"No results found for query '{query}'"
         # Return a concise string representation of results
         return str(results)
-    except Exception as e:
+    except AzureError as e:
         return f"Error searching index: {str(e)}"
 
 
@@ -112,11 +121,8 @@ def tavily_search_tool(query: str) -> str:
 
     tavily_client = _init_tavily_client()
     response = tavily_client.search(query)
-
-    if response.status_code != 200:
-        return f"Error searching Tavily API: {response.text}"
-
-    results = response.json().get("results", [])
+    # Tavily client returns a dict, not an HTTP response object.
+    results = response.get("results", []) if isinstance(response, dict) else []
     if not results:
         return f"No results found for query '{query}'"
     
@@ -132,6 +138,7 @@ land_prompt = PromptTemplate.from_template(
     "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
 )
 land_agent = create_react_agent(llm, land_tools, land_prompt)
+land_executor = AgentExecutor(agent=land_agent, tools=land_tools, verbose=False, handle_parsing_errors=True)
 
 # Create the Water agent
 water_tools = [tavily_search_tool]
@@ -141,10 +148,12 @@ water_prompt = PromptTemplate.from_template(
     "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
 )
 water_agent = create_react_agent(llm, water_tools, water_prompt)
+water_executor = AgentExecutor(agent=water_agent, tools=water_tools, verbose=False, handle_parsing_errors=True)
 
 # Create the orchestrator agent (without tools)
 orchestrator_prompt = PromptTemplate.from_template(
-        """You are an orchestrator agent. Delegate the user's request to the Land and Water agents.
+    """
+You are an orchestrator agent. Delegate the user's request to the Land and Water agents.
 
 User request: {input}
 
@@ -157,35 +166,46 @@ Return ONLY valid JSON matching exactly this schema (no extra text and no code f
 - Fill "land.response" with the Land agent's answer.
 - Fill "water.response" with the Water agent's answer.
 - If a domain has no result, use an empty string.
+
+Available tools: {tools}
+
+Tool names: {tool_names}
+
+{agent_scratchpad}
 """
 )
 orchestrator_agent = create_react_agent(llm, [], orchestrator_prompt)
+orchestrator_executor = AgentExecutor(agent=orchestrator_agent, tools=[], verbose=False, handle_parsing_errors=True)
 
 
 # Define workflow state
 class WorkflowState(TypedDict):
     """State structure for the LangGraph workflow."""
     input: str
+    route: str
     response: str
 
 
 # Define workflow nodes
 async def orchestrator_node(state: WorkflowState) -> WorkflowState:
-    """Orchestrator node that delegates to Land and Water agents"""
-    result = await orchestrator_agent.ainvoke({"input": state["input"]})
-    return {"response": result["messages"][-1].content}
+    """Orchestrator node that decides whether to route to Land or Water."""
+    # Simple heuristic routing based on keywords
+    text = state["input"].lower()
+    water_keywords = ["water", "river", "ocean", "sea", "lake", "marine"]
+    route = "water" if any(k in text for k in water_keywords) else "land"
+    return {"route": route}
 
 
 async def land_node(state: WorkflowState) -> WorkflowState:
     """Land node that processes the request with tools"""
-    result = await land_agent.ainvoke({"input": state["input"]})
-    return {"response": result["messages"][-1].content}
+    result = await land_executor.ainvoke({"input": state["input"]})
+    return {"response": result["output"]}
 
 
 async def water_node(state: WorkflowState) -> WorkflowState:
     """Water node that processes the request with tools"""
-    result = await water_agent.ainvoke({"input": state["input"]})
-    return {"response": result["messages"][-1].content}
+    result = await water_executor.ainvoke({"input": state["input"]})
+    return {"response": result["output"]}
 
 
 # Create the workflow
@@ -194,8 +214,14 @@ workflow.add_node("orchestrator", orchestrator_node)
 workflow.add_node("land", land_node)
 workflow.add_node("water", water_node)
 workflow.add_edge(START, "orchestrator")
-workflow.add_edge("orchestrator", "land")
-workflow.add_edge("orchestrator", "water")
+workflow.add_conditional_edges(
+    "orchestrator",
+    lambda s: s["route"],
+    {
+        "land": "land",
+        "water": "water",
+    },
+)
 workflow.add_edge("land", END)
 workflow.add_edge("water", END)
 
@@ -245,11 +271,15 @@ async def process_request(request: RequestModel):
     This endpoint uses the orchestrator agent to process incoming requests.
     """
     try:
-        # Use the LangGraph workflow to process the request
-        workflow_result = app_workflow.invoke({"input": request.message})
-        
+        # Log the incoming request
+        logger.info("Processing request: %s", request.message)
+        if request.formFields:
+            logger.info("Form fields count: %d", len(request.formFields))
+        # Use the LangGraph workflow (async) to process the request
+        workflow_result = await app_workflow.ainvoke({"input": request.message})
+
         return ResponseModel(
-            status=workflow_result["status"],
+            status="success",
             message=workflow_result["response"],
         )
         
