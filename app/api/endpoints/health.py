@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 from datetime import datetime
+import psutil
+import platform
 
 router = APIRouter()
 
@@ -11,7 +13,7 @@ async def health_check():
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now().isoformat(),
         "service": "AI Agent API",
     }
 
@@ -21,18 +23,20 @@ async def detailed_health_check():
     """
     Detailed health check with system information
     """
-    import psutil
-    import platform
+    memory = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
 
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now().isoformat(),
         "service": "AI Agent API",
         "system": {
             "platform": platform.system(),
             "cpu_count": psutil.cpu_count(),
-            "memory_total": psutil.virtual_memory().total,
-            "memory_available": psutil.virtual_memory().available,
-            "disk_usage": psutil.disk_usage("/").percent,
+            "memory_total": memory.total,
+            "memory_available": memory.available,
+            "memory_used": memory.used,
+            "memory_used_percent": f"{memory.percent:.1f}%",
+            "disk_usage": f"{disk.percent:.1f}%",
         },
     }
