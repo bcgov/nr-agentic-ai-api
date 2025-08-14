@@ -125,37 +125,74 @@ def tavily_search_tool(query: str) -> str:
     """
     Search and retrieve data from the Tavily API.
     """
-
-    tavily_client = _init_tavily_client()
-    response = tavily_client.search(query)
-    # Tavily client returns a dict, not an HTTP response object.
-    results = response.get("results", []) if isinstance(response, dict) else []
-    if not results:
-        return f"No results found for query '{query}'"
-    
-    # Return a concise string representation of results
-    return str(results)
+    try:
+        tavily_client = _init_tavily_client()
+        response = tavily_client.search(query)
+        # Tavily client returns a dict, not an HTTP response object.
+        results = response.get("results", []) if isinstance(response, dict) else []
+        if not results:
+            return f"No results found for query '{query}'"
+        
+        # Return a concise string representation of results
+        return str(results)
+    except Exception as e:
+        # Never raise from tools; return a friendly error string so the agent can conclude.
+        return f"Tavily search error: {e}"
 
 
 # Create the Land agent
 land_tools = [tavily_search_tool]
 land_prompt = PromptTemplate.from_template(
-    "You are a Land agent. Use the available tools to process the "
-    "user's request.\n\nUser request: {input}\n\n"
-    "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
+    "You are the Land agent. You can use tools to answer the user's request.\n\n"
+    "You have access to the following tools:\n{tools}\n\n"
+    "When deciding what to do, follow this format exactly:\n"
+    "Question: the input question you must answer\n"
+    "Thought: you should always think about what to do\n"
+    "Action: the action to take, must be one of [{tool_names}]\n"
+    "Action Input: the input to the action\n"
+    "Observation: the result of the action\n"
+    "... (this Thought/Action/Action Input/Observation cycle can repeat) ...\n"
+    "Thought: I now know the final answer\n"
+    "Final Answer: the final answer to the original input question\n\n"
+    "Begin!\n\n"
+    "Question: {input}\n"
+    "{agent_scratchpad}"
 )
 land_agent = create_react_agent(llm, land_tools, land_prompt)
-land_executor = AgentExecutor(agent=land_agent, tools=land_tools, verbose=False, handle_parsing_errors=True)
+land_executor = AgentExecutor(
+    agent=land_agent,
+    tools=land_tools,
+    verbose=False,
+    handle_parsing_errors=True,
+    max_iterations=4,
+)
 
 # Create the Water agent
 water_tools = [tavily_search_tool]
 water_prompt = PromptTemplate.from_template(
-    "You are a Water agent. Use the available tools to process the "
-    "user's request.\n\nUser request: {input}\n\n"
-    "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
+    "You are the Water agent. You can use tools to answer the user's request.\n\n"
+    "You have access to the following tools:\n{tools}\n\n"
+    "When deciding what to do, follow this format exactly:\n"
+    "Question: the input question you must answer\n"
+    "Thought: you should always think about what to do\n"
+    "Action: the action to take, must be one of [{tool_names}]\n"
+    "Action Input: the input to the action\n"
+    "Observation: the result of the action\n"
+    "... (this Thought/Action/Action Input/Observation cycle can repeat) ...\n"
+    "Thought: I now know the final answer\n"
+    "Final Answer: the final answer to the original input question\n\n"
+    "Begin!\n\n"
+    "Question: {input}\n"
+    "{agent_scratchpad}"
 )
 water_agent = create_react_agent(llm, water_tools, water_prompt)
-water_executor = AgentExecutor(agent=water_agent, tools=water_tools, verbose=False, handle_parsing_errors=True)
+water_executor = AgentExecutor(
+    agent=water_agent,
+    tools=water_tools,
+    verbose=False,
+    handle_parsing_errors=True,
+    max_iterations=4,
+)
 
 # Create the orchestrator agent (without tools)
 orchestrator_prompt = PromptTemplate.from_template(
@@ -185,7 +222,8 @@ class WorkflowState(TypedDict):
 async def orchestrator_node(state: WorkflowState) -> WorkflowState:
     """Orchestrator node that asks the LLM chain to choose 'land' or 'water'."""
     result = await orchestrator_router.ainvoke({"input": state["input"]})
-    route = str(result).strip().lower()
+    # Be defensive: take only the first token
+    route = str(result).strip().split()[0].lower()
     if route not in {"land", "water"}:
         route = "land"
     return {"route": route}
@@ -194,13 +232,19 @@ async def orchestrator_node(state: WorkflowState) -> WorkflowState:
 async def land_node(state: WorkflowState) -> WorkflowState:
     """Land node that processes the request with tools"""
     result = await land_executor.ainvoke({"input": state["input"]})
-    return {"response": result["output"]}
+    output_text = (
+        result.get("output") if isinstance(result, dict) else None
+    ) or str(result)
+    return {"response": output_text}
 
 
 async def water_node(state: WorkflowState) -> WorkflowState:
     """Water node that processes the request with tools"""
     result = await water_executor.ainvoke({"input": state["input"]})
-    return {"response": result["output"]}
+    output_text = (
+        result.get("output") if isinstance(result, dict) else None
+    ) or str(result)
+    return {"response": output_text}
 
 
 # Create the workflow
