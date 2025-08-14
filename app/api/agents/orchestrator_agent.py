@@ -8,12 +8,52 @@ import json
 import os
 import re
 from app.core.logging import get_logger
-from app.core.config import (
-    settings,
-)  # Assuming mapping document is loaded from a config module
 
-MAPPING_DOC = settings.MAPPING_DOC  # Load mapping document from settings
-
+# For simplicity, we'll hardcode the mapping doc JSON here; in production, load from file or env
+MAPPING_DOC = {
+    "ApplicantInformation": [
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1IsEligibleForFeeExemption",
+            "businessTerm": "",
+            "type": "radio",
+            "required": "true",
+            "description": "Government and First Nation Fee Exemption Request for Water Licenses.",
+        },
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1IsExistingExemptClient",
+            "businessTerm": "",
+            "type": "radio",
+            "required": "true",
+            "description": "Are you an existing exempt client?",
+        },
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1FeeExemptionClientNumber",
+            "businessTerm": "",
+            "type": "text",
+            "required": "true",
+            "description": "Please enter your client number",
+        },
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1FeeExemptionCategory",
+            "businessTerm": "",
+            "type": "select-one",
+            "required": "true",
+            "description": "Fee Exemption Category:",
+        },
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1FeeExemptionSupportingInfo",
+            "businessTerm": "",
+            "type": "textarea",
+            "required": "true",
+            "description": "Please enter any supporting information that will assist in determining your eligibility for a fee exemption. Please refer to help for details on fee exemption criteria and requirements.",
+        },
+    ]
+}
 # Initialize structured logger
 logger = get_logger(__name__)
 

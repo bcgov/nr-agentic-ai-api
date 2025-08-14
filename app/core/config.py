@@ -6,51 +6,7 @@ import os
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
-    # For simplicity, we'll hardcode the mapping doc JSON here; in production, load from file or env
-    MAPPING_DOC = {
-        "ApplicantInformation": [
-            {
-                "formFieldLabel": "",
-                "domElementId": "V1IsEligibleForFeeExemption",
-                "businessTerm": "",
-                "type": "radio",
-                "required": "true",
-                "description": "Government and First Nation Fee Exemption Request for Water Licenses.",
-            },
-            {
-                "formFieldLabel": "",
-                "domElementId": "V1IsExistingExemptClient",
-                "businessTerm": "",
-                "type": "radio",
-                "required": "true",
-                "description": "Are you an existing exempt client?",
-            },
-            {
-                "formFieldLabel": "",
-                "domElementId": "V1FeeExemptionClientNumber",
-                "businessTerm": "",
-                "type": "text",
-                "required": "true",
-                "description": "Please enter your client number",
-            },
-            {
-                "formFieldLabel": "",
-                "domElementId": "V1FeeExemptionCategory",
-                "businessTerm": "",
-                "type": "select-one",
-                "required": "true",
-                "description": "Fee Exemption Category:",
-            },
-            {
-                "formFieldLabel": "",
-                "domElementId": "V1FeeExemptionSupportingInfo",
-                "businessTerm": "",
-                "type": "textarea",
-                "required": "true",
-                "description": "Please enter any supporting information that will assist in determining your eligibility for a fee exemption. Please refer to help for details on fee exemption criteria and requirements.",
-            },
-        ]
-    }
+    
     # Project settings
     PROJECT_NAME: str = "AI Agent API"
     PROJECT_VERSION: str = "0.1.0"
