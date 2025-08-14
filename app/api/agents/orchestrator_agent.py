@@ -15,8 +15,8 @@ logger = get_logger(__name__)
 # Azure configurations
 search_client = SearchClient(
     endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
-    index_name=os.getenv("AZURE_SEARCH_INDEX_NAME"),
-    credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_API_KEY")),
+    index_name=os.getenv("AZURE_SEARCH_INDEX_NAME", "bc-water-index"),
+    credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_ADMIN_KEY")),
 )
 blob_service_client = BlobServiceClient.from_connection_string(
     os.getenv("AZURE_STORAGE_CONNECTION_STRING")
