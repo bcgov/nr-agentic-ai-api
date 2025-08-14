@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from api.endpoints import health
-from app.api.endpoints import indexer, orchestrator
+from app.api.endpoints import indexer, orchestrator_endpoints
 
 # Create main API router
 router = APIRouter()
@@ -9,5 +9,5 @@ router = APIRouter()
 router.include_router(health.router, prefix="/health", tags=["health"])
 router.include_router(indexer.router, prefix="/indexer", tags=["indexer"])
 router.include_router(
-    orchestrator.router, prefix="/orchestrator", tags=["orchestrator"]
+    orchestrator_endpoints.router, prefix="/orchestrator", tags=["orchestrator"]
 )
