@@ -29,6 +29,10 @@ from azure.ai.documentintelligence.models import (
 from azure.core.credentials import AzureKeyCredential
 from azure.identity import DefaultAzureCredential
 import traceback
+from app.core.logging import get_logger
+
+# Initialize structured logger
+logger = get_logger(__name__)
 
 
 # Environment variables (will be set in Azure Functions later)
@@ -97,8 +101,12 @@ def process_document_with_intelligence(blob_name, blob_data):
             },
         )
     except Exception as e:
-        print(
-            f"Error processing document {blob_name} with Document Intelligence: {str(e)}"
+        logger.error(
+            "Error processing document with Document Intelligence",
+            blob_name=blob_name,
+            error=str(e),
+            error_type=type(e).__name__,
+            exc_info=True,
         )
         return None
 
@@ -107,7 +115,7 @@ def start_indexing():
     try:
         # Load and chunk documents
         docs = []
-        print("Starting document loading from blob storage...")
+        logger.info("Starting document loading from blob storage")
 
         for blob in container_client.list_blobs():
             try:
@@ -116,54 +124,71 @@ def start_indexing():
                 blob_data = blob_client.download_blob().readall()
 
                 if blob.name.endswith((".pdf", ".docx", ".doc", ".txt", ".html")):
-                    print(f"Processing document: {blob.name}")
+                    logger.info("Processing document", blob_name=blob.name)
 
                     # Use Document Intelligence to process the document
                     document = process_document_with_intelligence(blob.name, blob_data)
 
                     if document:
                         docs.append(document)
-                        print(f"Successfully processed document: {blob.name}")
+                        logger.info(
+                            "Successfully processed document", blob_name=blob.name
+                        )
                     else:
-                        print(f"Failed to process document: {blob.name}")
+                        logger.warning(
+                            "Failed to process document", blob_name=blob.name
+                        )
 
                 else:
-                    print(f"Skipping unsupported file type: {blob.name}")
+                    logger.debug("Skipping unsupported file type", blob_name=blob.name)
 
             except Exception as blob_error:
-                print(f"Error processing blob {blob.name}: {str(blob_error)}")
-                print(f"Blob error type: {type(blob_error).__name__}")
+                logger.error(
+                    "Error processing blob",
+                    blob_name=blob.name,
+                    error=str(blob_error),
+                    error_type=type(blob_error).__name__,
+                    exc_info=True,
+                )
                 continue
 
         # Example for webpage
         try:
-            print("Loading webpage...")
+            logger.info("Loading webpage")
             web_loader = WebBaseLoader(
                 "https://portalext.nrs.gov.bc.ca/web/client/-/unit-converter"
             )
             docs.extend(web_loader.load())
-            print("Successfully loaded webpage")
+            logger.info("Successfully loaded webpage")
         except Exception as web_error:
-            print(f"Error loading webpage: {str(web_error)}")
-            print(f"Webpage error type: {type(web_error).__name__}")
+            logger.error(
+                "Error loading webpage",
+                error=str(web_error),
+                error_type=type(web_error).__name__,
+                exc_info=True,
+            )
 
-        print(f"Total documents loaded: {len(docs)}")
+        logger.info("Document loading completed", total_documents=len(docs))
 
         # Add more loaders for other files...
-        print("Starting text splitting...")
+        logger.info("Starting text splitting")
         splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
         chunks = splitter.split_documents(docs)
-        print(f"Created {len(chunks)} chunks from documents")
+        logger.info("Text splitting completed", total_chunks=len(chunks))
 
         # Index
-        print("Starting vector store indexing...")
+        logger.info("Starting vector store indexing")
         vector_store.add_documents(chunks)
-        print("Successfully indexed all chunks")
+        logger.info("Vector store indexing completed successfully")
 
         return {"message": "Indexing completed successfully"}
 
     except Exception as e:
-        print(f"Critical error during indexing: {str(e)}")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Full traceback: {traceback.format_exc()}")
+        logger.error(
+            "Critical error during indexing",
+            error=str(e),
+            error_type=type(e).__name__,
+            full_traceback=traceback.format_exc(),
+            exc_info=True,
+        )
         return {"error": f"Indexing failed: {str(e)}"}

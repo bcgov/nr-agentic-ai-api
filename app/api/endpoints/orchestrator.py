@@ -12,9 +12,9 @@ from langchain.tools import BaseTool
 from langchain_openai import AzureChatOpenAI
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel
-import structlog
+from app.core.logging import get_logger
 
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 load_dotenv()
 
 
