@@ -174,7 +174,7 @@ async def process_request(request: RequestModel):
             form_fields_count=len(request.formFields) if request.formFields else 0,
         )
         # Use the LangGraph workflow to process the request
-        workflow_result = await app_workflow.invoke({"input": request.message})
+        workflow_result = await app_workflow.ainvoke({"input": request.message})
 
         return ResponseModel(
             status=workflow_result["status"],
