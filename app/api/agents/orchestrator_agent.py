@@ -9,6 +9,51 @@ import os
 import re
 from app.core.logging import get_logger
 
+# For simplicity, we'll hardcode the mapping doc JSON here; in production, load from file or env
+MAPPING_DOC = {
+    "ApplicantInformation": [
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1IsEligibleForFeeExemption",
+            "businessTerm": "",
+            "type": "radio",
+            "required": "true",
+            "description": "Government and First Nation Fee Exemption Request for Water Licenses.",
+        },
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1IsExistingExemptClient",
+            "businessTerm": "",
+            "type": "radio",
+            "required": "true",
+            "description": "Are you an existing exempt client?",
+        },
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1FeeExemptionClientNumber",
+            "businessTerm": "",
+            "type": "text",
+            "required": "true",
+            "description": "Please enter your client number",
+        },
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1FeeExemptionCategory",
+            "businessTerm": "",
+            "type": "select-one",
+            "required": "true",
+            "description": "Fee Exemption Category:",
+        },
+        {
+            "formFieldLabel": "",
+            "domElementId": "V1FeeExemptionSupportingInfo",
+            "businessTerm": "",
+            "type": "textarea",
+            "required": "true",
+            "description": "Please enter any supporting information that will assist in determining your eligibility for a fee exemption. Please refer to help for details on fee exemption criteria and requirements.",
+        },
+    ]
+}
 # Initialize structured logger
 logger = get_logger(__name__)
 
@@ -28,24 +73,6 @@ llm = AzureChatOpenAI(
     deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
     api_version="2024-12-01-preview",
 )
-
-
-# Load mapping document
-def load_mapping_doc():
-    try:
-        with open("mapping_document.json", "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        logger.error(
-            "Error loading mapping document",
-            error=str(e),
-            error_type=type(e).__name__,
-            exc_info=True,
-        )
-        return {}
-
-
-mapping_doc = load_mapping_doc()
 
 
 # Subagent functions
@@ -98,7 +125,7 @@ def parse_json(json_data):
             logger.error("JSON input too large", json_size=len(json.dumps(json_data)))
             return {"error": "JSON input too large"}
         fields = json.loads(json_data)
-        return {mapping_doc.get(key, key): value for key, value in fields.items()}
+        return {MAPPING_DOC.get(key, key): value for key, value in fields.items()}
     except json.JSONDecodeError as e:
         logger.error(
             "Invalid JSON format",
@@ -183,15 +210,39 @@ orchestrator_tools = [
         description="Queries permit data",
     ),
 ]
-prompt = """You are an Orchestrator for a BC Water License form assistant. Analyze the enriched JSON.
-Sections: Source (water sources/works), Usage (purposes/quantities), Perms (authorizations/Crown).
-Steps:
-1. Identify incomplete/required fields by section.
-2. Route to agents: Source first (foundational), then Usage, then Perms.
-3. If dependency (e.g., source affects purpose), sequence calls.
-4. For clarifications, generate user-friendly questions.
-5. Aggregate when all required fields are filled (check mapping metadata).
-Output JSON: {"routes": [list of agent calls], "clarifications": [questions], "finalValues": {{...}} if complete}}.
+prompt = """
+You are an Orchestrator for a BC Water License form assistant.
+
+Goal:
+- Analyze the enriched JSON input and determine missing required fields by section.
+- Route to agents in order: Source (foundational), then Usage, then Perms.
+- If dependencies exist (e.g., source affects purpose), sequence tool calls accordingly.
+- Ask clear clarifying questions when information is missing.
+- When complete, aggregate results and propose final values.
+
+Available tools:
+{tools}
+
+You can call one of these tools by name: {tool_names}
+
+Use the following ReAct format:
+
+Question: {input}
+Thought: reflect on what to do next
+Action: one of [{tool_names}]
+Action Input: the input for the selected tool
+Observation: the result of the tool
+... (repeat Thought/Action/Action Input/Observation as needed)
+Thought: I now have enough information to respond
+Final Answer: a concise JSON object of the form
+{{
+    "routes": [list of agent calls you performed or recommend],
+    "clarifications": [list of user-friendly questions if anything is missing],
+    "finalValues": {{ ... }}  # include only when all required fields are filled
+}}
+
+Begin!
+{agent_scratchpad}
 """
 
 orchestrator = create_react_agent(llm=llm, tools=orchestrator_tools, prompt=prompt)
