@@ -1,27 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import uvicorn
-import logging
+from .api import router as api_router
+from .core.config import settings
+from .core.logging import get_logger
 
 # Load environment variables first
 load_dotenv()
 
-# Import Azure Key Vault integration (must be after load_dotenv)
-try:
-    from app.core.azure_keyvault import key_vault_client
-except ImportError:
-    key_vault_client = None
-
-from app.api import router as api_router
-from app.core.config import settings
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Initialize logger
+logger = get_logger(__name__)
 
 # Create FastAPI instance
 app = FastAPI(
@@ -55,13 +43,3 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
-
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-        log_level="info"
-    )

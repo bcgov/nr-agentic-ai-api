@@ -1,9 +1,13 @@
 from fastapi import APIRouter
-from app.api.endpoints import chat, health
+from api.endpoints import health
+from app.api.endpoints import indexer, orchestrator
 
 # Create main API router
 router = APIRouter()
 
 # Include endpoint routers
-router.include_router(chat.router, prefix="/chat", tags=["chat"])
 router.include_router(health.router, prefix="/health", tags=["health"])
+router.include_router(indexer.router, prefix="/indexer", tags=["indexer"])
+router.include_router(
+    orchestrator.router, prefix="/orchestrator", tags=["orchestrator"]
+)

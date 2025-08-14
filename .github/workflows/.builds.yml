@@ -1,0 +1,31 @@
+name: Build Containers
+
+on:
+  workflow_call:
+    inputs:
+      tags:
+        description: 'Tags to apply to the built containers multiline, separated by newlines'
+        required: true
+        type: string
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: write # This is required for actions/checkout
+  packages: write
+  pull-requests: write
+jobs:
+  # https://github.com/bcgov/action-builder-ghcr
+  builds:
+    name: Builds
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        # Only building frontend containers to run PR based e2e tests
+        package: [app]
+    timeout-minutes: 30
+    steps:
+      - uses: bcgov/action-builder-ghcr@v3.0.1
+        with:
+          package: ${{ matrix.package }}
+          tags: ${{ inputs.tags }}
+          triggers: ('${{ matrix.package }}/' '.github/workflows/.builds.yml')
+          tag_fallback: latest
