@@ -183,5 +183,5 @@ orchestrator_tools = [
         description="Queries permit data",
     ),
 ]
-orchestrator = create_react_agent(model=llm, tools=orchestrator_tools)
+orchestrator = create_react_agent(llm=llm, tools=orchestrator_tools)
 orchestrator_executor = AgentExecutor(agent=orchestrator, tools=orchestrator_tools)
