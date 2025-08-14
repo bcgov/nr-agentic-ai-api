@@ -42,7 +42,7 @@ class ResponseModel(BaseModel):
 
     status: str
     message: str
-    data: Optional[Dict[str, Any]] = None
+    data: Any = None
     timestamp: str
 
 
@@ -150,24 +150,24 @@ async def process_request(request: RequestModel):
         )
         logger.info("Workflow result", result=workflow_result)
         # Synthesize outputs (simple concatenation; improve with LLM if needed)
-        synthesized_output = "\n".join(
+        """ synthesized_output = "\n".join(
             [
                 workflow_result.get("orchestrator_output", ""),
                 workflow_result.get("source_output", ""),
                 workflow_result.get("permissions_output", ""),
                 workflow_result.get("usage_output", ""),
             ]
-        ).strip()
+        ).strip() """
         # Process the request with workflow results (handle missing outputs if not delegated)
-        processed_data = {
+        processed_data: Any = {
             "received_message": request.message,
             "orchestrator_output": workflow_result.get("orchestrator_output"),
             "source_output": workflow_result.get("source_output"),
             "permissions_output": workflow_result.get("permissions_output"),
             "usage_output": workflow_result.get("usage_output"),
-            "synthesized_output": synthesized_output
-            if synthesized_output
-            else "No agent outputs generated.",
+            # "synthesized_output": synthesized_output
+            # if synthesized_output
+            # else "No agent outputs generated.",
             "received_form_fields": request.formFields,
             "received_data": request.data,
             "received_metadata": request.metadata,
