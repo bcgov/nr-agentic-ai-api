@@ -441,5 +441,9 @@ orchestrator = create_react_agent(
     llm=llm, tools=orchestrator_tools, prompt=prompt_template
 )
 orchestrator_executor = AgentExecutor(
-    agent=orchestrator, tools=orchestrator_tools, handle_parsing_errors=True
+    agent=orchestrator,
+    tools=orchestrator_tools,
+    handle_parsing_errors=True,
+    max_iterations=4,
+    early_stopping_method="generate",
 )
