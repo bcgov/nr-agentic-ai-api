@@ -1,4 +1,3 @@
-import re
 from fastapi import APIRouter
 from datetime import datetime
 import psutil
