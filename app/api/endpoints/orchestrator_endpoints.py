@@ -177,7 +177,7 @@ async def process_request(request: RequestModel):
         return ResponseModel(
             status="success",
             message="Request processed successfully by orchestrator agent",
-            data=json.loads(processed_data),
+            data=request.message,
             timestamp=datetime.now().isoformat(),
         )
     except Exception as e:
