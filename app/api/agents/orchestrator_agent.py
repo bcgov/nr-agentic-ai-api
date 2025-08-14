@@ -400,6 +400,10 @@ orchestrator_tools = [
 
 prompt_template = PromptTemplate.from_template("""
 You are an Orchestrator for a BC Water Licence form assistant.
+Guidelines:
+- Prefer calling **RouteQuery** once per field/value. Do **not** call multiple tools for the same field.
+- Do not exceed **3 tool calls** total. If uncertain after 1-2 calls, ask **one** clarifying question and then stop.
+- When you have enough information, produce **Final Answer** immediately in the requested JSON format.
 
 Goal:
 - Analyze the enriched JSON input and determine missing required fields by section.
