@@ -36,9 +36,11 @@ def _get_env(name: str, *, required: bool = True, default: str = "") -> str:
 # ------------------------------------------------------------------------------
 # Azure Search (READS should use the QUERY key, not the admin key)
 # ------------------------------------------------------------------------------
-SEARCH_ENDPOINT = _get_env("AZURE_SEARCH_ENDPOINT")
-SEARCH_INDEX = _get_env("AZURE_SEARCH_INDEX_NAME", False, "bc-water-index")  # single source of truth across repo
-SEARCH_QUERY_KEY = _get_env("AZURE_SEARCH_ADMIN_KEY")
+SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
+SEARCH_INDEX = os.getenv(
+    "AZURE_SEARCH_INDEX_NAME", "bc-water-index"
+)  # single source of truth across repo
+SEARCH_QUERY_KEY = os.getenv("AZURE_SEARCH_ADMIN_KEY")
 
 search_client = SearchClient(
     endpoint=SEARCH_ENDPOINT,
