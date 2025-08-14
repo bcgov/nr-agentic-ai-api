@@ -3,16 +3,14 @@ Main FastAPI application with POST endpoint backbone
 """
 
 import os
-from typing import Any, Dict, Optional, List, TypedDict
-from datetime import datetime
+from typing import Optional, List, TypedDict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from langchain_openai import AzureChatOpenAI
 from langchain.agents import create_react_agent
-from langchain.agents import AgentExecutor
 from langchain.tools import BaseTool
 from langchain.prompts import PromptTemplate
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, END, START
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 from dotenv import load_dotenv
@@ -101,11 +99,7 @@ land_prompt = PromptTemplate.from_template(
     "user's request.\n\nUser request: {input}\n\n"
     "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
 )
-
 land_agent = create_react_agent(llm, land_tools, land_prompt)
-land_agent_executor = AgentExecutor(
-    agent=land_agent, tools=land_tools, verbose=True
-    )
 
 # Create the Water agent
 water_tools = [AISearchTool()]
@@ -114,54 +108,44 @@ water_prompt = PromptTemplate.from_template(
     "user's request.\n\nUser request: {input}\n\n"
     "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
 )
-
 water_agent = create_react_agent(llm, water_tools, water_prompt)
-water_agent_executor = AgentExecutor(
-    agent=water_agent, tools=water_tools, verbose=True
-    )
 
 # Create the orchestrator agent (without tools)
 orchestrator_prompt = PromptTemplate.from_template(
     "You are an orchestrator agent. Delegate the user's request to the "
     "Land and Water agents.\n\nUser request: {input}\n\n"
-    "Available tools: {tools}\n\nTool names: {tool_names}\n\n"
+    "Available tools: {tools}\n\n"
+    "Tool names: {tool_names}\n\n"
     "Simply acknowledge that you will delegate this to the Land and Water agents.\n\n"
     "{agent_scratchpad}"
 )
-
 orchestrator_agent = create_react_agent(llm, [], orchestrator_prompt)
-orchestrator_executor = AgentExecutor(
-    agent=orchestrator_agent, tools=[], verbose=True
-    )
 
 
 # Define workflow state
 class WorkflowState(TypedDict):
     """State structure for the LangGraph workflow."""
-    
     input: str
-    orchestrator_output: str
-    land_output: str
-    water_output: str
+    response: str
 
 
 # Define workflow nodes
-def orchestrator_node(state: WorkflowState) -> WorkflowState:
+async def orchestrator_node(state: WorkflowState) -> WorkflowState:
     """Orchestrator node that delegates to Land and Water agents"""
-    result = orchestrator_executor.invoke({"input": state["input"]})
-    return {"orchestrator_output": result["output"]}
+    result = await orchestrator_agent.ainvoke({"input": state["input"]})
+    return {"response": result["messages"][-1].content}
 
 
-def land_node(state: WorkflowState) -> WorkflowState:
+async def land_node(state: WorkflowState) -> WorkflowState:
     """Land node that processes the request with tools"""
-    result = land_agent_executor.invoke({"input": state["input"]})
-    return {"land_output": result["output"]}
+    result = await land_agent.ainvoke({"input": state["input"]})
+    return {"response": result["messages"][-1].content}
 
 
-def water_node(state: WorkflowState) -> WorkflowState:
+async def water_node(state: WorkflowState) -> WorkflowState:
     """Water node that processes the request with tools"""
-    result = water_agent_executor.invoke({"input": state["input"]})
-    return {"water_output": result["output"]}
+    result = await water_agent.ainvoke({"input": state["input"]})
+    return {"response": result["messages"][-1].content}
 
 
 # Create the workflow
@@ -169,7 +153,7 @@ workflow = StateGraph(WorkflowState)
 workflow.add_node("orchestrator", orchestrator_node)
 workflow.add_node("land", land_node)
 workflow.add_node("water", water_node)
-workflow.set_entry_point("orchestrator")
+workflow.add_edge(START, "orchestrator")
 workflow.add_edge("orchestrator", "land")
 workflow.add_edge("orchestrator", "water")
 workflow.add_edge("land", END)
@@ -193,18 +177,12 @@ class RequestModel(BaseModel):
     """Base request model for the POST endpoint"""
     message: str
     formFields: Optional[List[FormField]] = None
-    data: Optional[Dict[str, Any]] = None
-    metadata: Optional[Dict[str, Any]] = None
 
 # Base response model
-
-
 class ResponseModel(BaseModel):
     """Base response model for the POST endpoint"""
     status: str
     message: str
-    data: Optional[Dict[str, Any]] = None
-    timestamp: str
 
 
 @app.get("/")
@@ -230,32 +208,16 @@ async def process_request(request: RequestModel):
         # Use the LangGraph workflow to process the request
         workflow_result = app_workflow.invoke({"input": request.message})
         
-        # Process the request with workflow results
-        processed_data = {
-            "received_message": request.message,
-            "orchestrator_output": workflow_result["orchestrator_output"],
-            "land_output": workflow_result["land_output"],
-            "water_output": workflow_result["water_output"],
-            "received_form_fields": request.formFields,
-            "received_data": request.data,
-            "received_metadata": request.metadata,
-            "processed_at": datetime.now().isoformat()
-        }
-        
         return ResponseModel(
             status="success",
-            message="Request processed successfully by orchestrator agent",
-            data=processed_data,
-            timestamp=datetime.now().isoformat()
+            message=workflow_result["response"],
         )
         
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=(
-                f"Error processing request: {str(e)}"
-            )
-        )
+            detail=f"Error processing request: {str(e)}"
+        ) from e
 
 if __name__ == "__main__":
     import uvicorn
