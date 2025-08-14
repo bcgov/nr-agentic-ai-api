@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel
 from app.core.logging import get_logger
+import json
 
 # Imports for agent invoke functions (assuming module names; adjust based on actual file structure)
 from app.api.agents.source_agent import invoke_source_agent
@@ -161,22 +162,22 @@ async def process_request(request: RequestModel):
         # Process the request with workflow results (handle missing outputs if not delegated)
         processed_data: Any = {
             "received_message": request.message,
-            "orchestrator_output": workflow_result.get("orchestrator_output"),
-            "source_output": workflow_result.get("source_output"),
-            "permissions_output": workflow_result.get("permissions_output"),
-            "usage_output": workflow_result.get("usage_output"),
+            # "orchestrator_output": workflow_result.get("orchestrator_output"),
+            # "source_output": workflow_result.get("source_output"),
+            # "permissions_output": workflow_result.get("permissions_output"),
+            # "usage_output": workflow_result.get("usage_output"),
             # "synthesized_output": synthesized_output
             # if synthesized_output
             # else "No agent outputs generated.",
-            "received_form_fields": request.formFields,
-            "received_data": request.data,
-            "received_metadata": request.metadata,
-            "processed_at": datetime.now().isoformat(),
+            # "received_form_fields": request.formFields,
+            # "received_data": request.data,
+            # "received_metadata": request.metadata,
+            # "processed_at": datetime.now().isoformat(),
         }
         return ResponseModel(
             status="success",
             message="Request processed successfully by orchestrator agent",
-            data=processed_data,
+            data=json.loads(processed_data),
             timestamp=datetime.now().isoformat(),
         )
     except Exception as e:
