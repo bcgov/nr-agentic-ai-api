@@ -1,9 +1,12 @@
+import re
 from fastapi import APIRouter
 from datetime import datetime
 import psutil
 import platform
+from app.core.logging import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.get("/health")
@@ -25,8 +28,7 @@ async def detailed_health_check():
     """
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
-
-    return {
+    response = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "service": "AI Agent API",
@@ -40,3 +42,5 @@ async def detailed_health_check():
             "disk_usage": f"{disk.percent:.1f}%",
         },
     }
+    logger.info("Detailed health check performed", response=response)
+    return response

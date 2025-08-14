@@ -13,7 +13,6 @@ from app.core.config import settings
 
 def configure_structlog(
     log_level: str = "INFO",
-    use_json_format: bool = True,
     include_timestamp: bool = True,
 ) -> None:
     """
@@ -37,14 +36,7 @@ def configure_structlog(
 
     if include_timestamp:
         processors.insert(-1, structlog.processors.TimeStamper(fmt="iso"))
-
-    # Choose output format based on environment
-    if use_json_format or settings.is_production:
-        # JSON format for production and structured logging
-        processors.append(structlog.processors.JSONRenderer())
-    else:
-        # Human-readable format for development
-        processors.append(structlog.dev.ConsoleRenderer(colors=True))
+    processors.append(structlog.dev.ConsoleRenderer(colors=True))
 
     # Configure structlog
     structlog.configure(
@@ -169,6 +161,5 @@ def log_azure_operation(
 # Initialize logging when module is imported
 configure_structlog(
     log_level="DEBUG" if settings.DEBUG else "INFO",
-    use_json_format=settings.is_production,
     include_timestamp=True,
 )
