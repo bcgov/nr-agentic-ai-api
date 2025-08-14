@@ -46,9 +46,7 @@ def _search(
         select = ["*", "title", "url", "content"]
 
     try:
-        results = _search_client.search(
-            search_text=query, select=["*"], top=top, search_mode="hybrid"
-        )
+        results = _search_client.search(search_text=query, select=["*"], top=top)
         docs: List[Dict[str, Any]] = []
         for r in results:
             doc = {k: r.get(k) for k in select if k in r}
