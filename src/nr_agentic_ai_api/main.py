@@ -11,6 +11,7 @@ from langchain_openai import AzureChatOpenAI
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain.tools import tool
 from langchain.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from langgraph.graph import StateGraph, END, START
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import AzureError
@@ -23,6 +24,12 @@ load_dotenv()
 # Configure logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+# Ensure at least one handler is configured so logs are emitted under uvicorn
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
 
 
 # Initialize FastAPI app
@@ -153,29 +160,17 @@ water_executor = AgentExecutor(agent=water_agent, tools=water_tools, verbose=Fal
 # Create the orchestrator agent (without tools)
 orchestrator_prompt = PromptTemplate.from_template(
     """
-You are an orchestrator agent. Delegate the user's request to the Land and Water agents.
+You are a routing assistant. Decide which single specialized agent should handle the user's request.
+
+Return exactly one word (lowercase):
+- land
+- water
 
 User request: {input}
-
-Return ONLY valid JSON matching exactly this schema (no extra text and no code fences):
-{{
-    "land": {{ "response": "" }},
-    "water": {{ "response": "" }}
-}}
-
-- Fill "land.response" with the Land agent's answer.
-- Fill "water.response" with the Water agent's answer.
-- If a domain has no result, use an empty string.
-
-Available tools: {tools}
-
-Tool names: {tool_names}
-
-{agent_scratchpad}
 """
 )
-orchestrator_agent = create_react_agent(llm, [], orchestrator_prompt)
-orchestrator_executor = AgentExecutor(agent=orchestrator_agent, tools=[], verbose=False, handle_parsing_errors=True)
+# Simple chain (no tools) for routing: prompt -> llm -> string
+orchestrator_router = orchestrator_prompt | llm | StrOutputParser()
 
 
 # Define workflow state
@@ -188,11 +183,11 @@ class WorkflowState(TypedDict):
 
 # Define workflow nodes
 async def orchestrator_node(state: WorkflowState) -> WorkflowState:
-    """Orchestrator node that decides whether to route to Land or Water."""
-    # Simple heuristic routing based on keywords
-    text = state["input"].lower()
-    water_keywords = ["water", "river", "ocean", "sea", "lake", "marine"]
-    route = "water" if any(k in text for k in water_keywords) else "land"
+    """Orchestrator node that asks the LLM chain to choose 'land' or 'water'."""
+    result = await orchestrator_router.ainvoke({"input": state["input"]})
+    route = str(result).strip().lower()
+    if route not in {"land", "water"}:
+        route = "land"
     return {"route": route}
 
 
