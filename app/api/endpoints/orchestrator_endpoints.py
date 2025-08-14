@@ -185,11 +185,8 @@ async def process_request(request: RequestModel):
         logger.error(
             "Error processing orchestrator request",
             error=str(e),
-            error_type=type(e).__name__,
             request_message=request.message,
             form_fields_count=len(request.formFields) if request.formFields else 0,
-            has_data=bool(request.data),
-            has_metadata=bool(request.metadata),
             timestamp=datetime.now().isoformat(),
             exc_info=True,
         )
