@@ -4,16 +4,17 @@ Centralized logging configuration using structlog.
 This module provides a consistent logging setup across the entire application.
 """
 
-import structlog
 import logging
 import sys
 from typing import Any, Optional
+
+import structlog
+
 from app.core.config import settings
 
 
 def configure_structlog(
     log_level: str = "INFO",
-    include_timestamp: bool = True,
 ) -> None:
     """
     Configure structlog for the application.
@@ -25,17 +26,16 @@ def configure_structlog(
     """
     # Set up processors based on configuration
     processors = [
+        structlog.processors.TimeStamper(fmt="iso"),
         structlog.stdlib.filter_by_level,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer(),
     ]
-
-    if include_timestamp:
-        processors.insert(-1, structlog.processors.TimeStamper(fmt="iso"))
-    processors.append(structlog.dev.ConsoleRenderer(colors=True))
 
     # Configure structlog
     structlog.configure(
@@ -160,5 +160,4 @@ def log_azure_operation(
 # Initialize logging when module is imported
 configure_structlog(
     log_level="DEBUG" if settings.DEBUG else "INFO",
-    include_timestamp=True,
 )
