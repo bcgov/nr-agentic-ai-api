@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from langchain_openai import AzureChatOpenAI
 from langchain.agents import create_react_agent
-from langchain.tools import BaseTool
+from langchain.tools import tool
 from langchain.prompts import PromptTemplate
 from langgraph.graph import StateGraph, END, START
 from azure.core.credentials import AzureKeyCredential
@@ -34,66 +34,66 @@ llm = AzureChatOpenAI(
 )
 
 
-# Create a tool for reading data from AI search index
-class AISearchTool(BaseTool):
-    """Tool for searching and retrieving data from AI Search index."""
-    
-    name: str = "ai_search_tool"
-    description: str = (
-        "A tool that searches and retrieves data from AI Search index"
-    )
-    search_client: Optional[SearchClient] = None
-    
-    def __init__(self):
-        super().__init__()
-        
-        # Get environment variables
-        search_endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT")
-        search_key = os.environ.get("AZURE_SEARCH_KEY")
-        index_name = os.environ.get("AZURE_SEARCH_INDEX_NAME")
-        
-        # Initialize search client if environment variables are set
-        if search_endpoint and search_key and index_name:
-            credential = AzureKeyCredential(search_key)
-            self.search_client = SearchClient(
-                endpoint=search_endpoint,
-                index_name=index_name,
-                credential=credential
-            )
-    
-    def _run(self, query: str, run_manager=None) -> str:
-        if not self.search_client:
-            return (
-                "Azure Search not configured."
-            )
-        
-        try:
-            # Search the index
-            search_results = self.search_client.search(
-                search_text=query,
-                select=["*"],
-                top=5
-            )
-            
-            # Process results
-            results = []
-            for result in search_results:
-                results.append(dict(result))
-            
-            if not results:
-                return (
-                    f"No results found for query '{query}'"
-                )
-                
-        except Exception as e:
-            return f"Error searching index: {str(e)}"
-    
-    async def _arun(self, query: str) -> str:
-        return self._run(query)
+"""Azure AI Search tool implementation using @tool decorator."""
+
+# Lazily initialized search client shared by the tool
+_search_client: Optional[SearchClient] = None
+
+
+def _init_search_client() -> None:
+    """Initialize the global Azure AI Search client if env vars are present."""
+    global _search_client
+    if _search_client is not None:
+        return
+
+    search_endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT")
+    search_key = os.environ.get("AZURE_SEARCH_KEY")
+    index_name = os.environ.get("AZURE_SEARCH_INDEX_NAME")
+
+    if search_endpoint and search_key and index_name:
+        credential = AzureKeyCredential(search_key)
+        _search_client = SearchClient(
+            endpoint=search_endpoint,
+            index_name=index_name,
+            credential=credential,
+        )
+
+
+@tool("ai_search_tool")
+def ai_search_tool(query: str) -> str:
+    """
+    Search and retrieve data from the configured Azure AI Search index.
+
+    Expects the following environment variables to be set:
+    - AZURE_SEARCH_ENDPOINT
+    - AZURE_SEARCH_KEY
+    - AZURE_SEARCH_INDEX_NAME
+    """
+    _init_search_client()
+
+    if _search_client is None:
+        return (
+            "Azure Search not configured. Please set AZURE_SEARCH_ENDPOINT, "
+            "AZURE_SEARCH_KEY, and AZURE_SEARCH_INDEX_NAME."
+        )
+
+    try:
+        search_results = _search_client.search(
+            search_text=query,
+            select=["*"],
+            top=5,
+        )
+        results = [dict(r) for r in search_results]
+        if not results:
+            return f"No results found for query '{query}'"
+        # Return a concise string representation of results
+        return str(results)
+    except Exception as e:
+        return f"Error searching index: {str(e)}"
 
 
 # Create the Land agent
-land_tools = [AISearchTool()]
+land_tools = [ai_search_tool]
 land_prompt = PromptTemplate.from_template(
     "You are a Land agent. Use the available tools to process the "
     "user's request.\n\nUser request: {input}\n\n"
@@ -102,7 +102,7 @@ land_prompt = PromptTemplate.from_template(
 land_agent = create_react_agent(llm, land_tools, land_prompt)
 
 # Create the Water agent
-water_tools = [AISearchTool()]
+water_tools = [ai_search_tool]
 water_prompt = PromptTemplate.from_template(
     "You are a Water agent. Use the available tools to process the "
     "user's request.\n\nUser request: {input}\n\n"
