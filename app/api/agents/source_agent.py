@@ -1,4 +1,3 @@
-
 import json
 import os
 from typing import Any, Dict, List, Optional
@@ -73,7 +72,7 @@ def _search(
 #   - source_agent(query) -> JSON string (for LangChain Tool safety)
 #   - invoke_source_agent(query) -> dict (async-friendly wrapper)
 # ------------------------------------------------------------------------------
-def source_agent(query: str) -> str:
+def source_agent(query: str, *_args, **_kwargs) -> str:
     """
     Tool-safe entrypoint: accepts a single string and returns a JSON string.
     Payload schema:
@@ -94,7 +93,7 @@ def source_agent(query: str) -> str:
     return json.dumps(payload, default=str)
 
 
-async def invoke_source_agent(query: str) -> Dict[str, Any]:
+async def invoke_source_agent(query: str, *_args, **_kwargs) -> Dict[str, Any]:
     """
     Async-friendly wrapper that returns a dict (not a formatted string),
     in the same schema used by `source_agent`.

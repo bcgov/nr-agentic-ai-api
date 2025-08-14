@@ -74,7 +74,7 @@ def _search(
 #   - invoke_usage_agent(query) -> dict (async-friendly structured)
 # Schema mirrors source_agent: {agent, query, documents, message}
 # ------------------------------------------------------------------------------
-def usage_agent(query: str) -> str:
+def usage_agent(query: str, *_args, **_kwargs) -> str:
     """
     Tool-safe entrypoint: accepts a single string and returns a JSON string.
     Payload schema:
@@ -95,7 +95,7 @@ def usage_agent(query: str) -> str:
     return json.dumps(payload, default=str)
 
 
-async def invoke_usage_agent(query: str) -> Dict[str, Any]:
+async def invoke_usage_agent(query: str, *_args, **_kwargs) -> Dict[str, Any]:
     """
     Async-friendly wrapper that returns a dict (not a formatted string),
     in the same schema used by `usage_agent`.

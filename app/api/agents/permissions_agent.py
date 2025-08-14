@@ -189,7 +189,7 @@ def _search(
 # Schema mirrors other agents: {agent, query, documents, message}
 # Adds optional: "suggestions": [patch-like objects]
 # ------------------------------------------------------------------------------
-def permissions_agent(query: str) -> str:
+def permissions_agent(query: str, *_args, **_kwargs) -> str:
     """
     Tool-safe entrypoint: accepts a single string and returns a JSON string.
     Payload schema:
@@ -213,7 +213,7 @@ def permissions_agent(query: str) -> str:
     return json.dumps(payload, default=str)
 
 
-async def invoke_permissions_agent(query: str) -> Dict[str, Any]:
+async def invoke_permissions_agent(query: str, *_args, **_kwargs) -> Dict[str, Any]:
     """
     Async-friendly wrapper that returns a dict (not a formatted string),
     in the same schema used by `permissions_agent`.

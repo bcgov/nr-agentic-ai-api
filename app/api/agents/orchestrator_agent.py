@@ -152,7 +152,7 @@ def _search_top_contents(query: str, top: int = 3) -> List[str]:
 # ------------------------------------------------------------------------------
 # Sub-agent shims (tool-safe: single string input -> JSON string output)
 # ------------------------------------------------------------------------------
-def source_agent(query: str) -> str:
+def source_agent(query: str, *_args, **_kwargs) -> str:
     docs = _search_top_contents(query, top=3)
     payload = {
         "agent": "SourceAgent",
@@ -163,7 +163,7 @@ def source_agent(query: str) -> str:
     return json.dumps(payload)
 
 
-def usage_agent(query: str) -> str:
+def usage_agent(query: str, *_args, **_kwargs) -> str:
     docs = _search_top_contents(query, top=3)
     payload = {
         "agent": "UsageAgent",
@@ -174,7 +174,7 @@ def usage_agent(query: str) -> str:
     return json.dumps(payload)
 
 
-def permissions_agent(query: str) -> str:
+def permissions_agent(query: str, *_args, **_kwargs) -> str:
     # Removed naive "+BC Water Sustainability Act" suffix; rely on index semantics
     docs = _search_top_contents(query, top=3)
     payload = {
