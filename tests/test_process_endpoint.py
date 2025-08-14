@@ -1,9 +1,11 @@
+"""
+    Test for POST /api/process.
+"""
+
 import importlib
 import sys
 import types
 from pathlib import Path
-
-import pytest
 from fastapi.testclient import TestClient
 
 
