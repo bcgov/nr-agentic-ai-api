@@ -8,6 +8,11 @@ import json
 import os
 import re
 from app.core.logging import get_logger
+from app.core.config import (
+    settings,
+)  # Assuming mapping document is loaded from a config module
+
+MAPPING_DOC = settings.MAPPING_DOC  # Load mapping document from settings
 
 # Initialize structured logger
 logger = get_logger(__name__)
@@ -28,24 +33,6 @@ llm = AzureChatOpenAI(
     deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
     api_version="2024-12-01-preview",
 )
-
-
-# Load mapping document
-def load_mapping_doc():
-    try:
-        with open("mapping_document.json", "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        logger.error(
-            "Error loading mapping document",
-            error=str(e),
-            error_type=type(e).__name__,
-            exc_info=True,
-        )
-        return {}
-
-
-mapping_doc = load_mapping_doc()
 
 
 # Subagent functions
@@ -98,7 +85,7 @@ def parse_json(json_data):
             logger.error("JSON input too large", json_size=len(json.dumps(json_data)))
             return {"error": "JSON input too large"}
         fields = json.loads(json_data)
-        return {mapping_doc.get(key, key): value for key, value in fields.items()}
+        return {MAPPING_DOC.get(key, key): value for key, value in fields.items()}
     except json.JSONDecodeError as e:
         logger.error(
             "Invalid JSON format",
