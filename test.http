@@ -1,0 +1,14 @@
+curl -sS -X POST "http://localhost:8000/api/process" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "message": "Summarize the latest land and water updates.",
+    "formFields": [
+      {
+        "data_id": "123",
+        "fieldLabel": "Region",
+        "fieldType": "text",
+        "fieldValue": "Pacific Northwest"
+      }
+    ]
+  }'

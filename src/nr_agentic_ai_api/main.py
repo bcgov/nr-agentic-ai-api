@@ -13,6 +13,7 @@ from langchain.prompts import PromptTemplate
 from langgraph.graph import StateGraph, END, START
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
+from tavily import TavilyClient
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -92,8 +93,39 @@ def ai_search_tool(query: str) -> str:
         return f"Error searching index: {str(e)}"
 
 
+def _init_tavily_client() -> TavilyClient:
+    """Initialize the Tavily client with API key and URL."""
+    tavily_api_key = os.environ.get("TAVILY_API_KEY")
+
+    if not tavily_api_key:
+        raise ValueError(
+            "Tavily API not configured. Please set TAVILY_API_KEY."
+        )
+
+    return TavilyClient(tavily_api_key)
+
+@tool("tavily_search_tool")
+def tavily_search_tool(query: str) -> str:
+    """
+    Search and retrieve data from the Tavily API.
+    """
+
+    tavily_client = _init_tavily_client()
+    response = tavily_client.search(query)
+
+    if response.status_code != 200:
+        return f"Error searching Tavily API: {response.text}"
+
+    results = response.json().get("results", [])
+    if not results:
+        return f"No results found for query '{query}'"
+    
+    # Return a concise string representation of results
+    return str(results)
+
+
 # Create the Land agent
-land_tools = [ai_search_tool]
+land_tools = [tavily_search_tool]
 land_prompt = PromptTemplate.from_template(
     "You are a Land agent. Use the available tools to process the "
     "user's request.\n\nUser request: {input}\n\n"
@@ -102,7 +134,7 @@ land_prompt = PromptTemplate.from_template(
 land_agent = create_react_agent(llm, land_tools, land_prompt)
 
 # Create the Water agent
-water_tools = [ai_search_tool]
+water_tools = [tavily_search_tool]
 water_prompt = PromptTemplate.from_template(
     "You are a Water agent. Use the available tools to process the "
     "user's request.\n\nUser request: {input}\n\n"
@@ -112,12 +144,20 @@ water_agent = create_react_agent(llm, water_tools, water_prompt)
 
 # Create the orchestrator agent (without tools)
 orchestrator_prompt = PromptTemplate.from_template(
-    "You are an orchestrator agent. Delegate the user's request to the "
-    "Land and Water agents.\n\nUser request: {input}\n\n"
-    "Available tools: {tools}\n\n"
-    "Tool names: {tool_names}\n\n"
-    "Simply acknowledge that you will delegate this to the Land and Water agents.\n\n"
-    "{agent_scratchpad}"
+        """You are an orchestrator agent. Delegate the user's request to the Land and Water agents.
+
+User request: {input}
+
+Return ONLY valid JSON matching exactly this schema (no extra text and no code fences):
+{{
+    "land": {{ "response": "" }},
+    "water": {{ "response": "" }}
+}}
+
+- Fill "land.response" with the Land agent's answer.
+- Fill "water.response" with the Water agent's answer.
+- If a domain has no result, use an empty string.
+"""
 )
 orchestrator_agent = create_react_agent(llm, [], orchestrator_prompt)
 
@@ -209,7 +249,7 @@ async def process_request(request: RequestModel):
         workflow_result = app_workflow.invoke({"input": request.message})
         
         return ResponseModel(
-            status="success",
+            status=workflow_result["status"],
             message=workflow_result["response"],
         )
         
