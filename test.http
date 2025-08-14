@@ -8,7 +8,7 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "message": "Summarize the latest land updates.",
+  "message": "what are some of the land rules.",
   "formFields": [
     {
       "data_id": "123",

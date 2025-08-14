@@ -21,13 +21,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure logger
+# Configure logging (honor LOG_LEVEL env var; default INFO)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+_level = getattr(logging, LOG_LEVEL, logging.INFO)
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-# Ensure at least one handler is configured so logs are emitted under uvicorn
+logger.setLevel(_level)
+
+# Ensure at least one handler is configured so logs are emitted when launched via uv/uvicorn
 if not logging.getLogger().handlers:
     logging.basicConfig(
-        level=logging.INFO,
+        level=_level,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
 
@@ -40,6 +44,9 @@ app = FastAPI(
     ),
     version="0.1.0"
 )
+
+# Log app init once
+logger.info("NR Agentic AI API initialized (log level=%s)", LOG_LEVEL)
 
 # Initialize the Azure OpenAI LLM
 llm = AzureChatOpenAI(
@@ -87,6 +94,7 @@ def ai_search_tool(query: str) -> str:
     - AZURE_SEARCH_INDEX_NAME
     """
     client = _get_search_client()
+    logger.info("Azure Search client initialized.")
 
     if client is None:
         return (
@@ -98,9 +106,11 @@ def ai_search_tool(query: str) -> str:
         search_results = client.search(
             search_text=query,
             select=["*"],
+            search_mode="hybrid",
             top=5,
         )
         results = [dict(r) for r in search_results]
+        logger.info("Search results count=%d", len(results))
         if not results:
             return f"No results found for query '{query}'"
         # Return a concise string representation of results
@@ -168,7 +178,7 @@ land_executor = AgentExecutor(
 )
 
 # Create the Water agent
-water_tools = [tavily_search_tool]
+water_tools = [ai_search_tool]
 water_prompt = PromptTemplate.from_template(
     "You are the Water agent. You can use tools to answer the user's request.\n\n"
     "You have access to the following tools:\n{tools}\n\n"
@@ -232,6 +242,7 @@ async def orchestrator_node(state: WorkflowState) -> WorkflowState:
 async def land_node(state: WorkflowState) -> WorkflowState:
     """Land node that processes the request with tools"""
     result = await land_executor.ainvoke({"input": state["input"]})
+    logger.info("Land node result: %s", result)
     output_text = (
         result.get("output") if isinstance(result, dict) else None
     ) or str(result)
@@ -241,6 +252,7 @@ async def land_node(state: WorkflowState) -> WorkflowState:
 async def water_node(state: WorkflowState) -> WorkflowState:
     """Water node that processes the request with tools"""
     result = await water_executor.ainvoke({"input": state["input"]})
+    logger.info("Water node result: %s", result)
     output_text = (
         result.get("output") if isinstance(result, dict) else None
     ) or str(result)
@@ -310,8 +322,12 @@ async def process_request(request: RequestModel):
     This endpoint uses the orchestrator agent to process incoming requests.
     """
     try:
-        # Log the incoming request
-        logger.info("Processing request: %s", request.message)
+        # Log the incoming request (INFO so it appears by default)
+        logger.info(
+            "Processing message len=%d; formFields=%s",
+            len(request.message) if request.message else 0,
+            "yes" if request.formFields else "no",
+        )
         if request.formFields:
             logger.info("Form fields count: %d", len(request.formFields))
         # Use the LangGraph workflow (async) to process the request
@@ -323,6 +339,7 @@ async def process_request(request: RequestModel):
         )
         
     except Exception as e:
+        logger.exception("Unhandled error in /api/process: %s", e)
         raise HTTPException(
             status_code=500,
             detail=f"Error processing request: {str(e)}"
@@ -330,4 +347,5 @@ async def process_request(request: RequestModel):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Propagate chosen log level to uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level=LOG_LEVEL.lower())
