@@ -1,195 +1,229 @@
+import json
 import os
-from typing import Optional, List
+import re
+from typing import Any, Dict, List, Optional
+
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.prompts import PromptTemplate
-from langchain.tools import BaseTool
-from langchain_openai import AzureChatOpenAI
-from dotenv import load_dotenv
-from pydantic import BaseModel
-from app.core.logging import get_logger  # Assuming shared logging module
 
-# For simplicity, we'll hardcode the mapping doc JSON here; in production, load from file or env
-MAPPING_DOC = {
-    "ApplicantInformation": [
-        {
-            "formFieldLabel": "",
-            "domElementId": "V1IsEligibleForFeeExemption",
-            "businessTerm": "",
-            "type": "radio",
-            "required": "true",
-            "description": "Government and First Nation Fee Exemption Request for Water Licenses.",
-        },
-        {
-            "formFieldLabel": "",
-            "domElementId": "V1IsExistingExemptClient",
-            "businessTerm": "",
-            "type": "radio",
-            "required": "true",
-            "description": "Are you an existing exempt client?",
-        },
-        {
-            "formFieldLabel": "",
-            "domElementId": "V1FeeExemptionClientNumber",
-            "businessTerm": "",
-            "type": "text",
-            "required": "true",
-            "description": "Please enter your client number",
-        },
-        {
-            "formFieldLabel": "",
-            "domElementId": "V1FeeExemptionCategory",
-            "businessTerm": "",
-            "type": "select-one",
-            "required": "true",
-            "description": "Fee Exemption Category:",
-        },
-        {
-            "formFieldLabel": "",
-            "domElementId": "V1FeeExemptionSupportingInfo",
-            "businessTerm": "",
-            "type": "textarea",
-            "required": "true",
-            "description": "Please enter any supporting information that will assist in determining your eligibility for a fee exemption. Please refer to help for details on fee exemption criteria and requirements.",
-        },
-    ]
-}
+# ------------------------------------------------------------------------------
+# Logging (stdlib; consistent across agents)
+# ------------------------------------------------------------------------------
+from app.core.logging import get_logger
+
 logger = get_logger(__name__)
-load_dotenv()
 
-# Initialize the Azure OpenAI LLM (shared with Orchestrator)
-llm = AzureChatOpenAI(
-    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-    azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"],
-    openai_api_version="2024-12-01-preview",
+
+# ------------------------------------------------------------------------------
+# Azure Cognitive Search (READS use the QUERY key; keep vars consistent)
+# ------------------------------------------------------------------------------
+SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
+SEARCH_INDEX = os.getenv(
+    "AZURE_SEARCH_INDEX_NAME", "bc-water-index"
+)  # single source of truth across repo
+SEARCH_QUERY_KEY = os.getenv("AZURE_SEARCH_ADMIN_KEY")
+
+
+_search_client = SearchClient(
+    endpoint=SEARCH_ENDPOINT,
+    index_name=SEARCH_INDEX,
+    credential=AzureKeyCredential(SEARCH_QUERY_KEY),
 )
 
 
-# Define the AI Search Tool (shared tool, already supports async via _arun)
-class AISearchTool(BaseTool):
-    """Tool for searching and retrieving data from AI Search index."""
+# ------------------------------------------------------------------------------
+# Heuristics for permissions-related suggestions (patch-compatible)
+#   These are intentionally conservative and only emit suggestions when explicit.
+#   Field IDs match those used in your orchestrator's mapping example.
+# ------------------------------------------------------------------------------
+_FEE_EXEMPT_FIELD_IDS = {
+    "eligible": "V1IsEligibleForFeeExemption",
+    "existing_client": "V1IsExistingExemptClient",
+    "client_number": "V1FeeExemptionClientNumber",
+    "category": "V1FeeExemptionCategory",
+    "supporting": "V1FeeExemptionSupportingInfo",
+}
 
-    name: str = "ai_search_tool"
-    description: str = "A tool that searches and retrieves data from AI Search index"
-    search_client: Optional[SearchClient] = None
-
-    def __init__(self):
-        super().__init__()
-        # Get environment variables
-        search_endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT")
-        search_key = os.environ.get("AZURE_SEARCH_ADMIN_KEY")
-        index_name = "bc-water-index"  # hardcoded, consistent with Orchestrator
-        # Initialize search client if environment variables are set
-        if search_endpoint and search_key and index_name:
-            credential = AzureKeyCredential(search_key)
-            self.search_client = SearchClient(
-                endpoint=search_endpoint, index_name=index_name, credential=credential
-            )
-
-    def _run(self, query: str, run_manager=None) -> str:
-        if not self.search_client:
-            return "Azure Search not configured."
-        try:
-            # Search the index
-            search_results = self.search_client.search(
-                search_text=query, select=["*"], top=5
-            )
-            # Process results
-            results = []
-            for result in search_results:
-                results.append(dict(result))
-            if not results:
-                return f"No results found for query '{query}'"
-            return str(results)
-        except Exception as e:
-            return f"Error searching index: {str(e)}"
-
-    async def _arun(self, query: str) -> str:
-        return self._run(query)
-
-
-class PermissionsCheckTool(BaseTool):
-    """Custom tool for checking permissions and compliance, including fee exemptions based on mapping doc."""
-
-    name: str = "permissions_check_tool"
-    description: str = "A tool that checks permissions, compliance, and fee exemption eligibility using the provided mapping document and user input."
-
-    def _run(self, query: str, run_manager=None) -> str:
-        try:
-            # Simple logic: Check if query relates to fee exemption and validate against mapping
-            # In production, expand this to more sophisticated validation/rules engine
-            if "fee exemption" in query.lower():
-                required_fields = [
-                    field["domElementId"]
-                    for field in MAPPING_DOC["ApplicantInformation"]
-                    if field["required"]
-                ]
-                return f"Fee exemption check: Required fields are {required_fields}. Validate user input against these. Mapping doc: {MAPPING_DOC}"
-            else:
-                return "No specific permissions check matched. Use general search if needed."
-        except Exception as e:
-            return f"Error in permissions check: {str(e)}"
-
-    async def _arun(self, query: str) -> str:
-        return self._run(query)
-
-
-# Form field model (matched to Orchestrator for compatibility)
-class FormField(BaseModel):
-    """Model for individual form fields"""
-
-    data_id: str = None
-    fieldLabel: str = None
-    fieldType: str = None
-    fieldValue: str = None
-
-
-# Create the Permissions agent (manages access, compliance, and fee exemptions using mapping doc)
-permissions_tools = [AISearchTool(), PermissionsCheckTool()]
-permissions_prompt = PromptTemplate.from_template(
-    "You are a Permissions agent. Your role is to manage access, compliance, and check eligibility (e.g., fee exemptions) "
-    "using the mapping document and available tools. "
-    "If form fields are provided, validate them against the mapping doc (e.g., check required fields for exemptions).\n\n"
-    "User request: {input}\n\n"
-    "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
+_re_yes_no = re.compile(r"\b(yes|no)\b", re.I)
+_re_client_number = re.compile(
+    r"\bclient(?:\s*(?:no\.?|number))?\s*[:#]?\s*([A-Za-z0-9\-]+)\b", re.I
 )
-permissions_agent = create_react_agent(llm, permissions_tools, permissions_prompt)
-permissions_agent_executor = AgentExecutor(
-    agent=permissions_agent, tools=permissions_tools, verbose=True
+_re_category = re.compile(r"\bcategory\s*[:\-]\s*([^\n\r;,.]{1,80})", re.I)
+_re_supporting = re.compile(
+    r"\bsupporting\s*(?:info|information)\s*[:\-]\s*(.{10,400})", re.I
 )
 
 
-# Async function to invoke the Permissions Agent (called by Orchestrator's workflow node)
-async def invoke_permissions_agent(
-    input_str: str, form_fields: Optional[List[FormField]] = None
-) -> str:
-    """Async invocation function for the Permissions Agent, compatible with Orchestrator's delegation.
-    Handles optional form_fields by appending them to the input for processing.
-    Returns a string output suitable for frontend chat (e.g., human-readable response).
+def _infer_permissions_suggestions(query: str) -> List[Dict[str, Any]]:
     """
-    logger.info(f"Invoking Permissions Agent with input: {input_str}")
+    Inspect the natural-language query and emit zero or more patch-like suggestions:
+      { fieldId, value, confidence, rationale }
+    Only triggers on very explicit phrases to avoid bad autofill.
+    """
+    text = (query or "").strip()
+    if not text:
+        return []
 
-    # Process form fields if provided (e.g., serialize and append to input)
-    enhanced_input = input_str
-    if form_fields:
-        form_data_str = "\nForm fields provided:\n" + "\n".join(
-            [
-                f"- {field.fieldLabel or field.data_id}: {field.fieldValue}"
-                for field in form_fields
-                if field.fieldValue
-            ]
+    suggestions: List[Dict[str, Any]] = []
+    lowered = text.lower()
+
+    def add_suggestion(
+        field_key: str, value: str, confidence: float, rationale: str
+    ) -> None:
+        field_id = _FEE_EXEMPT_FIELD_IDS.get(field_key)
+        if not field_id:
+            return
+        suggestions.append(
+            {
+                "fieldId": field_id,
+                "value": value,
+                "confidence": confidence,
+                "rationale": rationale,
+                "agent": "PermissionsAgent",
+            }
         )
-        enhanced_input += form_data_str
-        logger.info(f"Enhanced input with form fields: {enhanced_input}")
+
+    # 1) Fee exemption yes/no (e.g., "Requesting fee exemption yes")
+    if "fee exemption" in lowered or "fee exempt" in lowered:
+        m = _re_yes_no.search(lowered)
+        if m:
+            yn = m.group(1).lower()
+            add_suggestion(
+                "eligible",
+                "Yes" if yn == "yes" else "No",
+                0.85,
+                "Detected explicit yes/no regarding fee exemption.",
+            )
+
+    # 2) Existing exempt client yes/no
+    if "existing exempt client" in lowered or "existing exemption client" in lowered:
+        m = _re_yes_no.search(lowered)
+        if m:
+            yn = m.group(1).lower()
+            add_suggestion(
+                "existing_client",
+                "Yes" if yn == "yes" else "No",
+                0.8,
+                "Detected explicit yes/no for existing exempt client status.",
+            )
+
+    # 3) Client number
+    m_client = _re_client_number.search(text)
+    if m_client:
+        add_suggestion(
+            "client_number",
+            m_client.group(1),
+            0.9,
+            "Detected an explicit client number in the text.",
+        )
+
+    # 4) Exemption category
+    m_cat = _re_category.search(text)
+    if m_cat:
+        value = m_cat.group(1).strip().rstrip(" .;,:")
+        if value:
+            add_suggestion(
+                "category",
+                value,
+                0.75,
+                "Detected an explicit category assignment.",
+            )
+
+    # 5) Supporting info
+    m_sup = _re_supporting.search(text)
+    if m_sup:
+        info = m_sup.group(1).strip()
+        add_suggestion(
+            "supporting",
+            info,
+            0.7,
+            "Detected explicit supporting information segment.",
+        )
+
+    return suggestions
+
+
+# ------------------------------------------------------------------------------
+# Internal search helper (compact projection + optional snippet)
+# ------------------------------------------------------------------------------
+def _search(
+    query: str,
+    *,
+    top: int = 3,
+    select: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Query the index and return a compact list of dicts suitable for downstream use.
+    """
+    if not select:
+        # Keep projection tight; adjust fields to your index schema.
+        select = ["id", "title", "url", "content"]
 
     try:
-        result = await permissions_agent_executor.ainvoke({"input": enhanced_input})
-        output = result["output"]
-        # Format output for frontend chat (e.g., prefix with a label for clarity)
-        formatted_output = f"Permissions Agent Response: {output}"
-        logger.info("Permissions Agent execution successful")
-        return formatted_output
+        results = _search_client.search(
+            search_text=query,
+            select=select,
+            top=top,
+        )
+        docs: List[Dict[str, Any]] = []
+        for r in results:
+            doc = {k: r.get(k) for k in select if k in r}
+            score = r.get("@search.score")
+            if score is not None:
+                doc["score"] = score
+            # Provide a short snippet if content is long (non-destructive).
+            content = doc.get("content")
+            if isinstance(content, str) and len(content) > 400:
+                doc["snippet"] = content[:400] + "…"
+            docs.append(doc)
+        return docs
     except Exception as e:
-        logger.error(f"Error in Permissions Agent: {str(e)}")
-        return f"Error in Permissions Agent: {str(e)} (Please check logs for details)"
+        logger.exception("PermissionsAgent search failed: %s", e)
+        return []
+
+
+# ------------------------------------------------------------------------------
+# Public API expected by the orchestrator
+#   - permissions_agent(query) -> JSON string (tool-safe)
+#   - invoke_permissions_agent(query) -> dict (async-friendly structured)
+# Schema mirrors other agents: {agent, query, documents, message}
+# Adds optional: "suggestions": [patch-like objects]
+# ------------------------------------------------------------------------------
+def permissions_agent(query: str) -> str:
+    """
+    Tool-safe entrypoint: accepts a single string and returns a JSON string.
+    Payload schema:
+      {
+        "agent": "PermissionsAgent",
+        "query": "<query>",
+        "documents": [ {id,title,url,snippet?,content?,score?}, ... ],
+        "suggestions": [ {fieldId,value,confidence,rationale,agent?}, ... ],
+        "message": "<empty or explanation>"
+      }
+    """
+    docs = _search(query, top=3)
+    suggestions = _infer_permissions_suggestions(query)
+    payload = {
+        "agent": "PermissionsAgent",
+        "query": query,
+        "documents": docs,
+        "suggestions": suggestions,  # optional, patch-compatible for "enter in form"
+        "message": "" if (docs or suggestions) else "No compliance guidance found.",
+    }
+    return json.dumps(payload, default=str)
+
+
+async def invoke_permissions_agent(query: str) -> Dict[str, Any]:
+    """
+    Async-friendly wrapper that returns a dict (not a formatted string),
+    in the same schema used by `permissions_agent`.
+    """
+    docs = _search(query, top=3)
+    suggestions = _infer_permissions_suggestions(query)
+    return {
+        "agent": "PermissionsAgent",
+        "query": query,
+        "documents": docs,
+        "suggestions": suggestions,
+        "message": "" if (docs or suggestions) else "No compliance guidance found.",
+    }

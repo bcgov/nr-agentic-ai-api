@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Union
 import json
 import os
 import re
-import logging
 
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain_openai import AzureChatOpenAI
@@ -13,14 +12,12 @@ from azure.search.documents import SearchClient
 from azure.core.credentials import AzureKeyCredential
 from azure.storage.blob import BlobServiceClient
 from azure.core.exceptions import ResourceExistsError
+from app.core.logging import get_logger
 
-
+logger = get_logger(__name__)
 # ------------------------------------------------------------------------------
 # Logging (standard library; no structured kwargs)
 # ------------------------------------------------------------------------------
-logger = logging.getLogger(__name__)
-if not logger.handlers:
-    logging.basicConfig(level=logging.INFO)
 
 
 # ------------------------------------------------------------------------------
