@@ -183,5 +183,16 @@ orchestrator_tools = [
         description="Queries permit data",
     ),
 ]
-orchestrator = create_react_agent(llm=llm, tools=orchestrator_tools)
+prompt = """You are an Orchestrator for a BC Water License form assistant. Analyze the enriched JSON.
+Sections: Source (water sources/works), Usage (purposes/quantities), Perms (authorizations/Crown).
+Steps:
+1. Identify incomplete/required fields by section.
+2. Route to agents: Source first (foundational), then Usage, then Perms.
+3. If dependency (e.g., source affects purpose), sequence calls.
+4. For clarifications, generate user-friendly questions.
+5. Aggregate when all required fields are filled (check mapping metadata).
+Output JSON: {"routes": [list of agent calls], "clarifications": [questions], "finalValues": {{...}} if complete}}.
+"""
+
+orchestrator = create_react_agent(llm=llm, tools=orchestrator_tools, prompt=prompt)
 orchestrator_executor = AgentExecutor(agent=orchestrator, tools=orchestrator_tools)
