@@ -3,6 +3,9 @@ Shared LLM infrastructure for hybrid agent processing
 """
 
 import os
+import json
+import re
+
 from typing import Dict, Any, List, Optional
 from langchain_openai import AzureChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
@@ -10,14 +13,42 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Shared LLM instance
-llm = AzureChatOpenAI(
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
-    temperature=0.3,  # Lower temperature for more consistent reasoning
-)
+
+# Initialize LLM with proper validation
+def _initialize_llm():
+    """Initialize Azure OpenAI LLM with validation"""
+    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini")
+    api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
+
+    if not endpoint:
+        logger.error("AZURE_OPENAI_ENDPOINT not configured")
+        raise ValueError("AZURE_OPENAI_ENDPOINT is required")
+
+    if not api_key:
+        logger.error("AZURE_OPENAI_API_KEY not configured")
+        raise ValueError("AZURE_OPENAI_API_KEY is required")
+
+    logger.info(
+        f"Initializing LLM with endpoint: {endpoint[:30]}..., deployment: {deployment}"
+    )
+
+    return AzureChatOpenAI(
+        azure_endpoint=endpoint,
+        api_key=api_key,
+        deployment_name=deployment,
+        api_version=api_version,
+        temperature=0.3,  # Lower temperature for more consistent reasoning
+    )
+
+
+# Initialize shared LLM instance
+try:
+    llm = _initialize_llm()
+except Exception as e:
+    logger.error(f"Failed to initialize LLM: {e}")
+    llm = None
 
 
 async def enhanced_analysis(
@@ -31,6 +62,14 @@ async def enhanced_analysis(
     Perform LLM-enhanced analysis when rule-based processing needs augmentation
     """
     try:
+        # Check if LLM is available
+        if llm is None:
+            logger.error("LLM not initialized - falling back to rule-based analysis")
+            return {
+                "error": "LLM not available",
+                "fallback": "Using rule-based analysis only",
+            }
+
         # Agent-specific prompts
         prompts = {
             "source": """You are a BC Water License Source Analysis expert. 
@@ -139,10 +178,6 @@ Provide enhanced analysis in JSON format:
         # Get LLM response
         response = await llm.ainvoke(messages)
 
-        # Parse response
-        import json
-        import re
-
         response_text = response.content
 
         # Try to extract JSON from response
@@ -172,7 +207,13 @@ Provide enhanced analysis in JSON format:
 def needs_enhancement(initial_analysis: Dict[str, Any], query: str) -> bool:
     """
     Determine if the initial analysis needs LLM enhancement
+    Only return True if LLM is available and rule-based analysis is insufficient
     """
+    # Don't attempt enhancement if LLM is not available
+    if llm is None:
+        logger.debug("LLM not available - skipping enhancement check")
+        return False
+
     # Check if rule-based analysis found limited results
     if (
         not initial_analysis.get("detected_sources")
