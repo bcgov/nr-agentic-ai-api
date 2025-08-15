@@ -1,110 +1,104 @@
+import json
 import os
-from typing import Optional, List
+from typing import Any, Dict, List, Optional
+
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.prompts import PromptTemplate
-from langchain.tools import BaseTool
-from langchain_openai import AzureChatOpenAI
-from dotenv import load_dotenv
-from pydantic import BaseModel
-from app.core.logging import get_logger  # Assuming shared logging module
+
+from app.core.logging import get_logger
 
 logger = get_logger(__name__)
-load_dotenv()
 
-# Initialize the Azure OpenAI LLM (shared with Orchestrator)
-llm = AzureChatOpenAI(
-    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-    azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"],
-    openai_api_version="2024-12-01-preview",
+
+# ------------------------------------------------------------------------------
+# Azure Cognitive Search (READS use the QUERY key; keep vars consistent)
+# ------------------------------------------------------------------------------
+SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
+SEARCH_INDEX = os.getenv(
+    "AZURE_SEARCH_INDEX_NAME", "bc-water-index"
+)  # single source of truth across repo
+SEARCH_QUERY_KEY = os.getenv("AZURE_SEARCH_ADMIN_KEY")
+
+
+_search_client = SearchClient(
+    endpoint=SEARCH_ENDPOINT,
+    index_name=SEARCH_INDEX,
+    credential=AzureKeyCredential(SEARCH_QUERY_KEY),
 )
 
-# Define the AI Search Tool (shared tool, already supports async via _arun)
-class AISearchTool(BaseTool):
-    """Tool for searching and retrieving data from AI Search index."""
-    name: str = "ai_search_tool"
-    description: str = "A tool that searches and retrieves data from AI Search index"
-    search_client: Optional[SearchClient] = None
 
-    def __init__(self):
-        super().__init__()
-        # Get environment variables
-        search_endpoint = os.environ.get("AZURE_SEARCH_ENDPOINT")
-        search_key = os.environ.get("AZURE_SEARCH_ADMIN_KEY")
-        index_name = "bc-water-index"  # hardcoded, consistent with Orchestrator
-        # Initialize search client if environment variables are set
-        if search_endpoint and search_key and index_name:
-            credential = AzureKeyCredential(search_key)
-            self.search_client = SearchClient(
-                endpoint=search_endpoint, index_name=index_name, credential=credential
-            )
-
-    def _run(self, query: str, run_manager=None) -> str:
-        if not self.search_client:
-            return "Azure Search not configured."
-        try:
-            # Search the index
-            search_results = self.search_client.search(
-                search_text=query, select=["*"], top=5
-            )
-            # Process results
-            results = []
-            for result in search_results:
-                results.append(dict(result))
-            if not results:
-                return f"No results found for query '{query}'"
-            return str(results)
-        except Exception as e:
-            return f"Error searching index: {str(e)}"
-
-    async def _arun(self, query: str) -> str:
-        return self._run(query)
-
-# Form field model (matched to Orchestrator for compatibility)
-class FormField(BaseModel):
-    """Model for individual form fields"""
-    data_id: str = None
-    fieldLabel: str = None
-    fieldType: str = None
-    fieldValue: str = None
-
-# Create the Source agent (handles data retrieval)
-source_tools = [AISearchTool()]
-source_prompt = PromptTemplate.from_template(
-    "You are a Source agent. Your role is to handle data retrieval from sources like the AI Search index. "
-    "Use the available tools to fetch relevant data based on the user's request. "
-    "If form fields are provided, incorporate them into your data retrieval logic (e.g., use field values as part of search queries).\n\n"
-    "User request: {input}\n\n"
-    "Available tools: {tools}\n\nTool names: {tool_names}\n\n{agent_scratchpad}"
-)
-source_agent = create_react_agent(llm, source_tools, source_prompt)
-source_agent_executor = AgentExecutor(agent=source_agent, tools=source_tools, verbose=True)
-
-# Async function to invoke the Source Agent (called by Orchestrator's workflow node)
-async def invoke_source_agent(input_str: str, form_fields: Optional[List[FormField]] = None) -> str:
-    """Async invocation function for the Source Agent, compatible with Orchestrator's delegation.
-    Handles optional form_fields by appending them to the input for processing.
-    Returns a string output suitable for frontend chat (e.g., human-readable response).
+# ------------------------------------------------------------------------------
+# Internal helper
+# ------------------------------------------------------------------------------
+def _search(
+    query: str,
+    *,
+    top: int = 3,
+    select: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     """
-    logger.info(f"Invoking Source Agent with input: {input_str}")
-    
-    # Process form fields if provided (e.g., serialize and append to input)
-    enhanced_input = input_str
-    if form_fields:
-        form_data_str = "\nForm fields provided:\n" + "\n".join(
-            [f"- {field.fieldLabel or field.data_id}: {field.fieldValue}" for field in form_fields if field.fieldValue]
-        )
-        enhanced_input += form_data_str
-        logger.info(f"Enhanced input with form fields: {enhanced_input}")
-    
+    Query the index and return a compact list of dicts suitable for downstream use.
+    """
+    if not select:
+        # keep projection tight; adjust to your index schema
+        select = ["id", "title", "url", "content"]
+
     try:
-        result = await source_agent_executor.ainvoke({"input": enhanced_input})
-        output = result["output"]
-        # Format output for frontend chat (e.g., prefix with a label for clarity)
-        formatted_output = f"Source Agent Response: {output}"
-        logger.info("Source Agent execution successful")
-        return formatted_output
+        results = _search_client.search(search_text=query, select=["*"], top=top)
+        docs: List[Dict[str, Any]] = []
+        for r in results:
+            # `r` behaves like a dict; include score if present
+            doc = {k: r.get(k) for k in select if k in r}
+            score = r.get("@search.score")
+            if score is not None:
+                doc["score"] = score
+            # provide a short snippet if content is long
+            content = doc.get("content")
+            if isinstance(content, str) and len(content) > 400:
+                doc["snippet"] = content[:400] + "…"
+            docs.append(doc)
+        return docs
     except Exception as e:
-        logger.error(f"Error in Source Agent: {str(e)}")
-        return f"Error in Source Agent: {str(e)} (Please check logs for details)"
+        logger.exception("SourceAgent search failed: %s", e)
+        return []
+
+
+# ------------------------------------------------------------------------------
+# Public API expected by the orchestrator
+#   - source_agent(query) -> JSON string (for LangChain Tool safety)
+#   - invoke_source_agent(query) -> dict (async-friendly wrapper)
+# ------------------------------------------------------------------------------
+def source_agent(query: str, *_args, **_kwargs) -> str:
+    """
+    Tool-safe entrypoint: accepts a single string and returns a JSON string.
+    Payload schema:
+      {
+        "agent": "SourceAgent",
+        "query": "<query>",
+        "documents": [ {id,title,url,snippet?,content?,score?}, ... ],
+        "message": "<empty or explanation>"
+      }
+    """
+    docs = _search(query, top=3)
+    payload = {
+        "agent": "SourceAgent",
+        "query": query,
+        "documents": docs,
+        "message": "" if docs else "No relevant data found for source query.",
+    }
+    return json.dumps(payload, default=str)
+
+
+async def invoke_source_agent(query: str, *_args, **_kwargs) -> Dict[str, Any]:
+    """
+    Async-friendly wrapper that returns a dict (not a formatted string),
+    in the same schema used by `source_agent`.
+    """
+    # The underlying Azure SDK call is synchronous; we simply call it in-place.
+    docs = _search(query, top=3)
+    return {
+        "agent": "SourceAgent",
+        "query": query,
+        "documents": docs,
+        "message": "" if docs else "No relevant data found for source query.",
+    }
