@@ -400,40 +400,39 @@ orchestrator_tools = [
 
 prompt_template = PromptTemplate.from_template("""
 You are an Orchestrator for a BC Water Licence form assistant.
-Guidelines:
-- Prefer calling **RouteQuery** once per field/value. Do **not** call multiple tools for the same field.
-- Do not exceed **3 tool calls** total. If uncertain after 1-2 calls, ask **one** clarifying question and then stop.
-- When you have enough information, produce **Final Answer** immediately in the requested JSON format.
 
-Goal:
-- Analyze the enriched JSON input and determine missing required fields by section.
-- Route to agents in order: Source (foundational), then Usage, then Permissions when needed.
-- If dependencies exist (e.g., source affects purpose), sequence tool calls accordingly.
-- Ask clear clarifying questions when information is missing.
-- When complete, aggregate results and propose final values.
+CRITICAL: You MUST ALWAYS end with "Final Answer:" followed by VALID JSON. No exceptions.
+
+Guidelines:
+- Analyze the user input to determine what agents need to be called
+- Use tools to gather information when needed
+- Always provide a Final Answer in the exact JSON format specified below
+- Maximum 3 tool calls to keep responses efficient
 
 Available tools:
 {tools}
 
-You can call one of these tools by name: {tool_names}
+Tool names: {tool_names}
 
-Use the following ReAct format:
+Use this exact format:
 
 Question: {input}
-Thought: reflect on what to do next
-Action: one of [{tool_names}]
-Action Input: the input for the selected tool
-Observation: the result of the tool
-... (repeat Thought/Action/Action Input/Observation as needed)
-Thought: I now have enough information to respond
-Final Answer: a concise JSON object of the form
-{{
-  "routes": ["SourceAgent: ...", "UsageAgent: ..."],
-  "clarifications": ["..."],
-  "finalValues": {{"fieldId": "value"}}  # include only when all required fields are filled
-}}
+Thought: I need to analyze this request and determine which agents to route to
+Action: [tool_name if needed]
+Action Input: [input for tool if needed]
+Observation: [tool result if used]
+Thought: Based on the analysis, I can now provide the routing decision
+Final Answer: {{"route": ["source", "usage", "permissions"], "clarifications": ["What is the water source location?"], "analysis": "Brief analysis of the request", "intermediate_steps": [...]}}
+
+The Final Answer MUST be valid JSON with these exact fields:
+- "route": array of strings (valid values: "source", "usage", "permissions")
+- "clarifications": array of question strings (empty if none needed)  
+- "analysis": string describing what was analyzed
+- "intermediate_steps": array of any tool calls made
 
 Begin!
+
+Question: {input}
 {agent_scratchpad}
 """)
 
@@ -446,4 +445,6 @@ orchestrator_executor = AgentExecutor(
     handle_parsing_errors=True,
     max_iterations=4,
     early_stopping_method="generate",
+    return_intermediate_steps=True,  # Enable intermediate steps
+    verbose=True,  # Enable verbose logging
 )

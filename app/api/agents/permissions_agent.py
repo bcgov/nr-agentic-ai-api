@@ -10,6 +10,8 @@ from azure.search.documents import SearchClient
 # Logging (stdlib; consistent across agents)
 # ------------------------------------------------------------------------------
 from app.core.logging import get_logger
+from app.core.config import settings
+from .llm_helper import enhanced_analysis, needs_enhancement
 
 logger = get_logger(__name__)
 
@@ -209,17 +211,147 @@ def permissions_agent(query: str, *_args, **_kwargs) -> str:
     return json.dumps(payload, default=str)
 
 
-async def invoke_permissions_agent(query: str, *_args, **_kwargs) -> Dict[str, Any]:
+async def invoke_permissions_agent(
+    query: str, form_fields: Optional[List] = None
+) -> Dict[str, Any]:
     """
-    Async-friendly wrapper that returns a dict (not a formatted string),
-    in the same schema used by `permissions_agent`.
+    Async-friendly wrapper that returns a dict with comprehensive permissions analysis.
+    Now accepts form_fields for enhanced analysis.
     """
-    docs = _search(query, top=3)
-    suggestions = _infer_permissions_suggestions(query)
-    return {
-        "agent": "PermissionsAgent",
-        "query": query,
-        "documents": docs,
-        "suggestions": suggestions,
-        "message": "" if (docs or suggestions) else "No compliance guidance found.",
-    }
+    try:
+        logger.info(
+            f"Processing permissions query: {query}",
+            extra={"form_fields_count": len(form_fields) if form_fields else 0},
+        )
+
+        docs = _search(query, top=5)
+        suggestions = _infer_permissions_suggestions(query)
+
+        # Analyze form fields for permissions-related information
+        permission_fields = []
+        if form_fields:
+            for field in form_fields:
+                if hasattr(field, "fieldLabel") and field.fieldLabel:
+                    if any(
+                        term in field.fieldLabel.lower()
+                        for term in [
+                            "permit",
+                            "license",
+                            "authorization",
+                            "exemption",
+                            "compliance",
+                            "regulation",
+                        ]
+                    ):
+                        permission_fields.append(
+                            {
+                                "data_id": getattr(field, "data_id", None),
+                                "label": field.fieldLabel,
+                                "type": getattr(field, "fieldType", None),
+                                "value": getattr(field, "fieldValue", None),
+                            }
+                        )
+
+        # Extract compliance requirements from query
+        compliance_keywords = {
+            "water sustainability act": {
+                "type": "legislation",
+                "description": "BC Water Sustainability Act compliance",
+            },
+            "environmental assessment": {
+                "type": "assessment",
+                "description": "Environmental impact assessment required",
+            },
+            "first nation consultation": {
+                "type": "consultation",
+                "description": "First Nation consultation requirements",
+            },
+            "fee exemption": {
+                "type": "exemption",
+                "description": "Government/First Nation fee exemption eligibility",
+            },
+            "water license": {
+                "type": "license",
+                "description": "Water use license requirements",
+            },
+            "groundwater": {
+                "type": "regulation",
+                "description": "Groundwater use regulations",
+            },
+        }
+
+        query_lower = query.lower()
+        detected_requirements = []
+
+        for keyword, info in compliance_keywords.items():
+            if keyword in query_lower:
+                detected_requirements.append(
+                    {
+                        "keyword": keyword,
+                        "type": info["type"],
+                        "description": info["description"],
+                    }
+                )
+
+        # Initial rule-based analysis
+        initial_analysis = {
+            "detected_requirements": detected_requirements,
+            "permission_fields": permission_fields,
+            "suggestions": suggestions,
+            "search_results": docs,
+            "analysis": f"Found {len(detected_requirements)} compliance requirements and {len(docs)} relevant documents",
+        }
+
+        # Determine if LLM enhancement is needed
+        needs_llm_enhancement = needs_enhancement(initial_analysis, query)
+        enhanced_data = {}
+
+        if needs_llm_enhancement:
+            logger.info("Permissions analysis requires LLM enhancement")
+            enhanced_data = await enhanced_analysis(
+                "permissions", query, initial_analysis, docs, form_fields
+            )
+        else:
+            logger.info("Rule-based permissions analysis sufficient")
+
+        return {
+            "agent": "PermissionsAgent",
+            "status": "success",
+            "query": query,
+            "documents": docs,
+            "suggestions": suggestions,
+            "permission_fields": permission_fields,
+            "detected_requirements": detected_requirements,
+            "analysis": initial_analysis["analysis"],
+            "enhanced_analysis": enhanced_data if needs_llm_enhancement else None,
+            "processing_method": "hybrid_llm"
+            if needs_llm_enhancement
+            else "rule_based",
+            "recommendations": enhanced_data.get(
+                "compliance_checklist",
+                [
+                    "Review BC Water Sustainability Act requirements",
+                    "Check First Nation consultation obligations",
+                    "Verify environmental assessment needs",
+                    "Confirm fee exemption eligibility criteria",
+                ],
+            )
+            if detected_requirements
+            else ["Please specify the regulatory requirements or compliance concerns"],
+            "message": "" if (docs or suggestions) else "No compliance guidance found.",
+        }
+
+    except Exception as e:
+        logger.error(f"Error in invoke_permissions_agent: {str(e)}", exc_info=True)
+        return {
+            "agent": "PermissionsAgent",
+            "status": "error",
+            "query": query,
+            "error": str(e),
+            "documents": [],
+            "suggestions": [],
+            "permission_fields": [],
+            "detected_requirements": [],
+            "analysis": f"Error processing permissions request: {str(e)}",
+            "message": f"Error: {str(e)}",
+        }
