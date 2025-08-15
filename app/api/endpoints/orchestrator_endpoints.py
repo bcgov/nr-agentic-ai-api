@@ -320,41 +320,6 @@ async def process_request(request: RequestModel):
                     "analysis": "Orchestrator did not execute properly",
                 },
             ),
-            "source_output": get_output_or_skipped("source_output"),
-            "permissions_output": get_output_or_skipped("permissions_output"),
-            "usage_output": get_output_or_skipped("usage_output"),
-            "workflow_summary": {
-                "total_agents": 3,
-                "executed_agents": sum(
-                    1
-                    for key in ["source_output", "permissions_output", "usage_output"]
-                    if workflow_result.get(key) is not None
-                ),
-                "skipped_agents": sum(
-                    1
-                    for key in ["source_output", "permissions_output", "usage_output"]
-                    if workflow_result.get(key) is None
-                ),
-                "llm_enhanced_agents": processing_summary["total_llm_enhanced"],
-                "rule_based_agents": sum(
-                    1
-                    for info in processing_summary.values()
-                    if isinstance(info, dict) and info.get("method") == "rule_based"
-                ),
-                "has_errors": any(
-                    output.get("status") == "error"
-                    for output in [
-                        workflow_result.get("source_output", {}),
-                        workflow_result.get("permissions_output", {}),
-                        workflow_result.get("usage_output", {}),
-                    ]
-                    if isinstance(output, dict)
-                ),
-                "processing_methods": processing_summary,
-            },
-            "intermediate_steps": workflow_result.get("orchestrator_output", {}).get(
-                "intermediate_steps", []
-            ),
             "processed_at": datetime.now().isoformat(),
         }
 
