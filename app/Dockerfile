@@ -13,7 +13,7 @@ RUN uv sync --frozen --no-cache
 # Azure App Service expects the app to run on port 8000 by default
 EXPOSE 8000
 
-# Set environment variables for Azure App Service
+# Set environment variables for Azure App Service 
 ENV PORT=8000
 ENV HOST=0.0.0.0
 ENV PYTHONPATH="/app"
