@@ -187,7 +187,7 @@ def permissions_agent(query: str, *_args, **_kwargs) -> str:
 
 
 # ------------------------------------------------------------------------------
-# Storage
+# Storage result
 # ------------------------------------------------------------------------------
 def store_result(blob_name: str, data: Union[Dict[str, Any], List[Any], str]) -> None:
     ensure_container("results")
