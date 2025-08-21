@@ -1,0 +1,20 @@
+### Health check
+GET http://localhost:8000/health
+Accept: application/json
+
+### Process request
+POST http://localhost:8000/api/process
+Content-Type: application/json
+Accept: application/json
+
+{
+  "message": "what are some of the land rules.",
+  "formFields": [
+    {
+      "data_id": "123",
+      "fieldLabel": "Region",
+      "fieldType": "text",
+      "fieldValue": "Pacific Northwest"
+    }
+  ]
+}
