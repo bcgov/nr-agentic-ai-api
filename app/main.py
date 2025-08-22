@@ -48,12 +48,6 @@ app = FastAPI(
 # Log app init once
 logger.info("NR Agentic AI API initialized (log level=%s)", LOG_LEVEL)
 
-
-
-
-
-
-
 @app.get("/")
 async def root():
     """Root endpoint"""

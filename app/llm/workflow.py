@@ -3,7 +3,8 @@ Workflow graph and node definitions for LLM agentic flow.
 """
 from langgraph.graph import StateGraph, END, START
 from typing import TypedDict
-from .agents import land_executor, water_executor
+from .agents.land_agent import land_executor
+from .agents.water_agent import water_executor
 
 class WorkflowState(TypedDict):
     input: str
