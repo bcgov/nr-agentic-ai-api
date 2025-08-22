@@ -1,45 +1,96 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from .api import router as api_router
-from .core.config import settings
-from .core.logging import get_logger
+"""
+Main FastAPI application with POST endpoint backbone
+"""
 
-# Load environment variables first
+import os
+import logging
+from typing import Optional, List, TypedDict
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from dotenv import load_dotenv
+from app.llm.workflow import app_workflow
+
+# Minimal request/response models for FastAPI endpoint typing
+class RequestModel(BaseModel):
+    message: str
+    formFields: Optional[List[dict]] = None
+
+class ResponseModel(BaseModel):
+    status: str
+    message: str
+
 load_dotenv()
 
-# Initialize logger
-logger = get_logger(__name__)
+# Configure logging (honor LOG_LEVEL env var; default INFO)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+_level = getattr(logging, LOG_LEVEL, logging.INFO)
 
-# Create FastAPI instance
+logger = logging.getLogger(__name__)
+logger.setLevel(_level)
+
+# Ensure at least one handler is configured so logs are emitted when launched via uv/uvicorn
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=_level,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+
+
+# Initialize FastAPI app
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    description="AI Agent API built with FastAPI and Azure OpenAI",
-    version=settings.PROJECT_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    title="NR Agentic AI API",
+    description=(
+        "An agentic AI API built with FastAPI, LangGraph, and LangChain"
+    ),
+    version="0.1.0"
 )
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.allowed_hosts_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include API router
-app.include_router(api_router, prefix="/api/v1")
-
+# Log app init once
+logger.info("NR Agentic AI API initialized (log level=%s)", LOG_LEVEL)
 
 @app.get("/")
 async def root():
     """Root endpoint"""
-    return {"message": "Welcome to AI Agent API", "version": settings.PROJECT_VERSION}
+    return {"message": "NR Agentic AI API is running"}
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "NR Agentic AI API"}
+
+
+@app.post("/api/process", response_model=ResponseModel)
+async def process_request(request: RequestModel):
+    """
+    Main POST endpoint to receive and process requests
+    
+    This endpoint uses the orchestrator agent to process incoming requests.
+    """
+    try:
+        # Log the incoming request (INFO so it appears by default)
+        logger.info(
+            "Processing message len=%d; formFields=%s",
+            len(request.message) if request.message else 0,
+            "yes" if request.formFields else "no",
+        )
+        if request.formFields:
+            logger.info("Form fields count: %d", len(request.formFields))
+        # Use the LangGraph workflow (async) to process the request
+        workflow_result = await app_workflow.ainvoke({"input": request.message})
+
+        return ResponseModel(
+            status="success",
+            message=workflow_result["response"],
+        )
+        
+    except Exception as e:
+        logger.exception("Unhandled error in /api/process: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing request: {str(e)}"
+        ) from e
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level=LOG_LEVEL.lower())
