@@ -10,6 +10,15 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from app.llm.workflow import app_workflow
 
+# Import agentic AI router conditionally
+try:
+    from app.agenticai.endpoints import router as agenticai_router
+    AGENTICAI_AVAILABLE = True
+except ImportError as e:
+    print(f"Agentic AI not available: {e}")
+    agenticai_router = None
+    AGENTICAI_AVAILABLE = False
+
 # Minimal request/response models for FastAPI endpoint typing
 class RequestModel(BaseModel):
     message: str
@@ -40,10 +49,18 @@ if not logging.getLogger().handlers:
 app = FastAPI(
     title="NR Agentic AI API",
     description=(
-        "An agentic AI API built with FastAPI, LangGraph, and LangChain"
+        "An agentic AI API built with FastAPI, LangGraph, and LangChain. "
+        "Features intelligent form filling and multi-agent workflows."
     ),
     version="0.1.0"
 )
+
+# Include agentic AI router if available
+if AGENTICAI_AVAILABLE and agenticai_router:
+    app.include_router(agenticai_router)
+    print("✅ Agentic AI endpoints loaded successfully")
+else:
+    print("⚠️ Agentic AI endpoints not available")
 
 # Log app init once
 logger.info("NR Agentic AI API initialized (log level=%s)", LOG_LEVEL)
