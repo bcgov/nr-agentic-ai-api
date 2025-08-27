@@ -27,6 +27,7 @@ class RequestModel(BaseModel):
 class ResponseModel(BaseModel):
     status: str
     message: str
+    formFields: Optional[List[dict]] = None
 
 load_dotenv()
 
@@ -94,11 +95,14 @@ async def process_request(request: RequestModel):
         if request.formFields:
             logger.info("Form fields count: %d", len(request.formFields))
         # Use the LangGraph workflow (async) to process the request
-        workflow_result = await app_workflow.ainvoke({"input": request.message})
+        workflow_result = await app_workflow.ainvoke({"message": request.message, "formFields": request.formFields or []})
 
+        response = workflow_result["response"]
+        # response is a dict with keys 'message' and 'formFields'
         return ResponseModel(
             status="success",
-            message=workflow_result["response"],
+            message=response.get("message", ""),
+            formFields=response.get("formFields", None)
         )
         
     except Exception as e:
