@@ -51,5 +51,4 @@ workflow.add_edge("land", END)
 workflow.add_edge("water", END)
 
 app_workflow = workflow.compile()
-# from IPython.display import Image, display
-# display(Image(app.get_graph().draw_mermaid_png()))
+#print(app_workflow.get_graph().draw_ascii())
