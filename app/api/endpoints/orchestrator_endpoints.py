@@ -12,7 +12,6 @@ from app.api.agents.source_agent import invoke_source_agent
 from app.api.agents.permissions_agent import invoke_permissions_agent
 from app.api.agents.usage_agent import invoke_usage_agent
 from app.api.agents.orchestrator_agent import orchestrator_executor
-from app.llm.agents.water_agent import water_executor
 
 logger = get_logger(__name__)
 load_dotenv()
