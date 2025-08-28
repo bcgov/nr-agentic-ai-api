@@ -63,12 +63,8 @@ Action Input: the message and formFields to the action
 Observation: the result of the action
 ... (this Thought/Action/Action Input/Observation cycle can repeat) ...
 Thought: I now know the final answer
-Action: ai_search_tool
-Action Input: {{ "message": "<your response message>", "formFields": <the populated formFields list> }}
-Observation: <result of the action>
 Final Answer: {{
-    "message": "<your response message>",
-    "formFields": <the populated formFields list>
+    {{"message": "<your response message>", "formFields": <the populated formFields list>}}
 }}
 Begin!
 

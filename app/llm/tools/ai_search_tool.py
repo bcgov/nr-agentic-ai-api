@@ -88,16 +88,38 @@ def ai_search_tool(query: str) -> str:
         )
 
     try:
-        #query = "Government and First Nation Fee Exemption Request"
-        search_results = client.search(
-            search_text=message,
-            select=["*"],
-            top=2,
-        )
+        # Build filter string from formFields
+        filters = []
+        if formFields and isinstance(formFields, list):
+            for field in formFields:
+                # Check if field is a dict with data_id and field_value keys
+                field_id = field.get("data_id")
+                field_value = field.get("fieldValue")
+                
+                if field_id and field_value:
+                    safe_value = str(field_value).replace("'", "''")
+                    filters.append(f"{field_id} eq '{safe_value}'")
+        
+        filter_str = " and ".join(filters) if filters else None
+        if filter_str:
+            logging.info(f"Azure Search filter: {filter_str}")
+            
+        # Prepare search arguments
+        search_args = {
+            "search_text": message,
+            "select": ["*"],
+            "top": 3,
+        }
+        
+        if filter_str:
+            search_args["filter"] = filter_str
+        
+        search_results = client.search(**search_args)
         results = [dict(r) for r in search_results]
-        #logger.info("Search results count=%d", len(results))
+        
         if not results:
-            return f"No results found for query '{message}'"
+            return f"No results found for query '{message}'" + (f" with filters: {filter_str}" if filter_str else "")
+        
         # Return a concise string representation of results
         return str(results)
     except AzureError as e:
