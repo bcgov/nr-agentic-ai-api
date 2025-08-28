@@ -17,7 +17,7 @@ SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
 SEARCH_INDEX = os.getenv(
     "AZURE_SEARCH_INDEX_NAME", "bc-water-index"
 )  # single source of truth across repo
-SEARCH_QUERY_KEY = os.getenv("AZURE_SEARCH_ADMIN_KEY")
+SEARCH_QUERY_KEY = os.getenv("AZURE_SEARCH_KEY")
 
 
 _search_client = SearchClient(

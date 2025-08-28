@@ -6,9 +6,19 @@ import os
 import logging
 from typing import Optional, List, TypedDict
 from fastapi import FastAPI, HTTPException
+from app.api import router as api_router
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from app.llm.workflow import app_workflow
+
+# Import agentic AI router conditionally
+try:
+    from app.agenticai.endpoints import router as agenticai_router
+    AGENTICAI_AVAILABLE = True
+except ImportError as e:
+    print(f"Agentic AI not available: {e}")
+    agenticai_router = None
+    AGENTICAI_AVAILABLE = False
 
 # Minimal request/response models for FastAPI endpoint typing
 class RequestModel(BaseModel):
@@ -18,6 +28,7 @@ class RequestModel(BaseModel):
 class ResponseModel(BaseModel):
     status: str
     message: str
+    formFields: Optional[List[dict]] = None
 
 load_dotenv()
 
@@ -40,10 +51,18 @@ if not logging.getLogger().handlers:
 app = FastAPI(
     title="NR Agentic AI API",
     description=(
-        "An agentic AI API built with FastAPI, LangGraph, and LangChain"
+        "An agentic AI API built with FastAPI, LangGraph, and LangChain. "
+        "Features intelligent form filling and multi-agent workflows."
     ),
     version="0.1.0"
 )
+
+# Include agentic AI router if available
+if AGENTICAI_AVAILABLE and agenticai_router:
+    app.include_router(agenticai_router)
+    print("✅ Agentic AI endpoints loaded successfully")
+else:
+    print("⚠️ Agentic AI endpoints not available")
 
 # Log app init once
 logger.info("NR Agentic AI API initialized (log level=%s)", LOG_LEVEL)
@@ -77,11 +96,14 @@ async def process_request(request: RequestModel):
         if request.formFields:
             logger.info("Form fields count: %d", len(request.formFields))
         # Use the LangGraph workflow (async) to process the request
-        workflow_result = await app_workflow.ainvoke({"input": request.message})
+        workflow_result = await app_workflow.ainvoke({"message": request.message, "formFields": request.formFields or []})
 
+        response = workflow_result["response"]
+        # response is a dict with keys 'message' and 'formFields'
         return ResponseModel(
             status="success",
-            message=workflow_result["response"],
+            message=response.get("message", ""),
+            formFields=response.get("formFields", None)
         )
         
     except Exception as e:
@@ -90,6 +112,8 @@ async def process_request(request: RequestModel):
             status_code=500,
             detail=f"Error processing request: {str(e)}"
         ) from e
+# Include API router
+app.include_router(api_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

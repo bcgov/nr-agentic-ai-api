@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from api.endpoints import health
+from app.api.endpoints import health
 from app.api.endpoints import indexer, orchestrator_endpoints
 
 # Create main API router

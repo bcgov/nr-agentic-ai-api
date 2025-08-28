@@ -37,7 +37,7 @@ SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT")
 SEARCH_INDEX = os.getenv(
     "AZURE_SEARCH_INDEX_NAME", "bc-water-index"
 )  # single source of truth across repo
-SEARCH_QUERY_KEY = os.getenv("AZURE_SEARCH_ADMIN_KEY")
+SEARCH_QUERY_KEY = os.getenv("AZURE_SEARCH_KEY")
 
 search_client = SearchClient(
     endpoint=SEARCH_ENDPOINT,
@@ -428,7 +428,7 @@ Observation: the result of the tool
 Thought: I now have enough information to respond
 Final Answer: a concise JSON object of the form
 {{
-  "routes": ["SourceAgent: ...", "UsageAgent: ..."],
+  "routes": ["SourceAgent: ..., UsageAgent: ..."],
   "clarifications": ["..."],
   "finalValues": {{"fieldId": "value"}}  # include only when all required fields are filled
 }}
@@ -444,6 +444,6 @@ orchestrator_executor = AgentExecutor(
     agent=orchestrator,
     tools=orchestrator_tools,
     handle_parsing_errors=True,
-    max_iterations=4,
-    early_stopping_method="generate",
+    max_iterations=10,
+    early_stopping_method="force",
 )
