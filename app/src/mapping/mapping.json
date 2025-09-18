@@ -1,0 +1,39 @@
+{
+    "source-water-well": {
+      "label": "Is the water coming from a well?",
+      "category": "source",
+      "required": true,
+      "externalRef": "https://www2.gov.bc.ca/gov/content/environment/air-land-water/water/water-licensing-rights",
+      "conditions": "If 'Yes', ask about hydraulic connection"
+    },
+    "hydraulic-connection": {
+      "label": "Is there a hydraulic connection to surface water?",
+      "category": "source",
+      "required": true,
+      "externalRef": "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/14015",
+      "conditions": ""
+    },
+    "add-purpose-sub": {
+      "label": "Add a Purpose (e.g., Swimming Pool, Irrigation)",
+      "category": "usage",
+      "required": true,
+      "externalRef": "https://www2.gov.bc.ca/assets/gov/environment/air-land-water/water/water-licensing-and-rights/water_use_purpose_defns.pdf",
+      "conditions": "Triggers quantity & seasonality"
+    },
+    "annual-quantity": {
+      "label": "Total Annual Quantity",
+      "category": "usage",
+      "required": true,
+      "externalRef": "https://bcwatercalculator.ca/agriculture/welcome",
+      "conditions": "Expect m³/year"
+    },
+    "crown-land-permission": {
+      "label": "Permission to occupy Crown Land",
+      "category":"permits",
+      "required": true,
+      "externalRef": "https://www2.gov.bc.ca/gov/content/industry/crown-land-water/crown-land/crown-land-uses",
+      "conditions": "If 'Yes', ask checklist"
+    }
+  }
+  
+

@@ -1,0 +1,24 @@
+﻿version: 1
+fields:
+  source-water-well:
+    type: enum
+    allowed: ["Yes", "No"]
+    messages:
+      required: "Select whether the source is a well."
+  hydraulic-connection:
+    type: enum
+    allowed: ["Connected", "Not connected", "Unknown"]
+    dependencies:
+      - if: { field: source-water-well, equals: "Yes" }
+        then: { required: true, message: "If the source is a well, specify hydraulic connection." }
+  annual-quantity:
+    type: number
+    units: m3_per_year
+    messages:
+      parse_error: "Enter a number, e.g., 700 or 700 m3/yr."
+rules:
+  - id: HYDRO_REQ
+    when: { field: source-water-well, equals: "Yes" }
+    assert: { field: hydraulic-connection, present: true }
+    severity: error
+    message: "If water comes from a well, specify hydraulic connection."
