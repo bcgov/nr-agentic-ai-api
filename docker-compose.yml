@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  agent-api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT_GPT4O: ${AZURE_OPENAI_DEPLOYMENT_GPT4O}
+      AZURE_OPENAI_DEPLOYMENT_GPT4O_MINI: ${AZURE_OPENAI_DEPLOYMENT_GPT4O_MINI}
+      AZURE_OPENAI_DEPLOYMENT_EMBEDDINGS: ${AZURE_OPENAI_DEPLOYMENT_EMBEDDINGS}
+      AZURE_SEARCH_ENDPOINT: ${AZURE_SEARCH_ENDPOINT}
+      AZURE_SEARCH_INDEX: ${AZURE_SEARCH_INDEX}
+      AZURE_SEARCH_API_KEY: ${AZURE_SEARCH_API_KEY}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      COSMOS_ENDPOINT: ${COSMOS_ENDPOINT}
+      COSMOS_KEY: ${COSMOS_KEY}
+      COSMOS_DB_NAME: ${COSMOS_DB_NAME}
+      COSMOS_CONTAINER_NAME: ${COSMOS_CONTAINER_NAME}
+      REGION: ${REGION:-canadacentral}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

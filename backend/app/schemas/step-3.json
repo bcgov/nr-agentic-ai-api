@@ -1,0 +1,80 @@
+{
+  "page": { "id": "step-3-water-source", "title": "Water Source Information" },
+  "fields": [
+    {
+      "id": "source_type",
+      "label": "Water Source Type",
+      "type": "select",
+      "required": true,
+      "options": [
+        { "value": "surface", "label": "Surface water" },
+        { "value": "groundwater", "label": "Groundwater" }
+      ],
+      "visibleWhen": null,
+      "helpRef": "guidance.sourceType"
+    },
+    {
+      "id": "stream_name",
+      "label": "Official Stream/Lake Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., Koksilah River",
+      "visibleWhen": "source_type == 'surface'",
+      "helpRef": "guidance.streamName"
+    },
+    {
+      "id": "tributary_to",
+      "label": "Immediately Tributary To",
+      "type": "text",
+      "required": false,
+      "visibleWhen": "source_type == 'surface'",
+      "helpRef": "guidance.tributary"
+    },
+    {
+      "id": "aquifer_name",
+      "label": "Aquifer / Well Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., Nanaimo Aquifer, Well #2",
+      "visibleWhen": "source_type == 'groundwater'",
+      "helpRef": "guidance.aquifer"
+    },
+    {
+      "id": "well_tag_number",
+      "label": "BC Well Tag Number",
+      "type": "text",
+      "required": false,
+      "pattern": "^[0-9]{5,7}$",
+      "visibleWhen": "source_type == 'groundwater'",
+      "helpRef": "guidance.wellTag"
+    }
+  ],
+  "popups": [
+    {
+      "id": "source_type_help",
+      "trigger": "click:#help-source-type",
+      "contentRef": "guidance.sourceType"
+    },
+    {
+      "id": "well_tag_help",
+      "trigger": "click:#help-well-tag",
+      "contentRef": "guidance.wellTag"
+    }
+  ],
+  "validation": {
+    "rules": [
+      {
+        "id": "require_stream_if_surface",
+        "when": "source_type == 'surface'",
+        "assert": "stream_name && stream_name.trim().length > 1",
+        "message": "Please provide the official stream or lake name."
+      },
+      {
+        "id": "require_aquifer_if_groundwater",
+        "when": "source_type == 'groundwater'",
+        "assert": "aquifer_name && aquifer_name.trim().length > 1",
+        "message": "Please provide the aquifer/well name."
+      }
+    ]
+  }
+}

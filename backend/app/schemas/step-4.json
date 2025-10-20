@@ -1,0 +1,81 @@
+{
+  "page": { "id": "step-4-purpose-quantity", "title": "Purpose & Quantity" },
+  "fields": [
+    {
+      "id": "purpose",
+      "label": "Water Use Purpose",
+      "type": "select",
+      "required": true,
+      "options": [
+        { "value": "domestic", "label": "Domestic" },
+        { "value": "irrigation", "label": "Irrigation" },
+        { "value": "industrial", "label": "Industrial" }
+      ],
+      "visibleWhen": null,
+      "helpRef": "guidance.purpose"
+    },
+    {
+      "id": "irrigated_area_ha",
+      "label": "Irrigated Area (ha)",
+      "type": "number",
+      "required": true,
+      "visibleWhen": "purpose == 'irrigation'",
+      "min": 0.01,
+      "helpRef": "guidance.irrigationArea"
+    },
+    {
+      "id": "quantity_value",
+      "label": "Requested Quantity",
+      "type": "number",
+      "required": true,
+      "visibleWhen": "purpose != ''",
+      "helpRef": "guidance.quantity"
+    },
+    {
+      "id": "quantity_unit",
+      "label": "Unit",
+      "type": "select",
+      "required": true,
+      "options": [
+        { "value": "m3_per_day", "label": "m³/day" },
+        { "value": "L_per_s", "label": "L/s" }
+      ],
+      "visibleWhen": "purpose != ''"
+    }
+  ],
+  "popups": [
+    {
+      "id": "purpose_help",
+      "trigger": "click:#help-purpose",
+      "contentRef": "guidance.purpose"
+    },
+    {
+      "id": "irrigation_calc",
+      "trigger": "click:#open-irrigation-calculator",
+      "contentRef": "link.bcAgCalculator"
+    }
+  ],
+  "validation": {
+    "rules": [
+      {
+        "id": "irrigation_requires_area",
+        "when": "purpose == 'irrigation'",
+        "assert": "Number(irrigated_area_ha) > 0",
+        "message": "Please provide the irrigated area (in hectares)."
+      },
+      {
+        "id": "quantity_required",
+        "when": "purpose != ''",
+        "assert": "Number(quantity_value) > 0 && ['m3_per_day','L_per_s'].includes(quantity_unit)",
+        "message": "Enter a positive quantity and choose a unit."
+      },
+      {
+        "id": "domestic_soft_advisory",
+        "when": "purpose == 'domestic'",
+        "assert": "true",
+        "severity": "advisory",
+        "message": "Domestic groundwater may be exempt from licensing; confirm your purpose."
+      }
+    ]
+  }
+}

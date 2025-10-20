@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "definitions": {
+    "quantity": {
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "enum": ["m3_per_day", "l_per_s"] }
+      },
+      "required": ["amount", "unit"]
+    },
+    "waterSourceType": {
+      "type": "string",
+      "enum": ["surface", "groundwater"]
+    },
+    "purpose": {
+      "type": "string",
+      "enum": ["domestic", "irrigation", "industrial"]
+    },
+    "subPurpose": {
+      "type": "string",
+      "enum": [
+        "household",
+        "stock_watering",
+        "crop_irrigation",
+        "process_cooling"
+      ]
+    }
+  }
+}
