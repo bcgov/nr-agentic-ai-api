@@ -12,8 +12,6 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_openai import AzureChatOpenAI
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.redis.aio import AsyncRedisSaver
-import redis
 import traceback
 import asyncio
 from app.formfiller.agents import analyze_form_executor, process_field_executor
@@ -39,12 +37,6 @@ model = AzureChatOpenAI(
 
 # Create a checkpointer for persistence
 checkpointer = MemorySaver()
-
-# for local development for now
-# install local redis using docker docker run -d --name redis -p 6379:6379 redis
-# DB_URI = "redis://localhost:6379"
-# with RedisSaver.from_conn_string(DB_URI) as checkpointer:
-#     checkpointer.setup()
 
 # Define form field structure
 class FormField(TypedDict):
