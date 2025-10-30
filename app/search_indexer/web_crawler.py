@@ -58,18 +58,40 @@ else:
     document_intelligence_client = DocumentIntelligenceClient(
         endpoint=document_intelligence_endpoint, credential=DefaultAzureCredential()
     )
-# Load environment variables (use dotenv if preferred)
-embeddings = AzureOpenAIEmbeddings(
-    azure_deployment="text-embedding-3-large",  # Deploy this embedding model in Azure OpenAI if not already (similar to GPT deployment)
-    openai_api_version="2024-02-01",  # Adjust to latest
-)
-vector_store = AzureSearch(
-    azure_search_endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
-    azure_search_key=os.getenv("AZURE_SEARCH_ADMIN_KEY"),
-    index_name="bc-water-index",  # Create if doesn't exist
-    embedding_function=embeddings.embed_query,
-    search_type="hybrid",  # Enables vector + keyword
-)
+
+# Lazy initialization for Azure services
+_embeddings = None
+_vector_store = None
+
+def get_embeddings():
+    """Get Azure OpenAI embeddings client with lazy initialization."""
+    global _embeddings
+    if _embeddings is None:
+        _embeddings = AzureOpenAIEmbeddings(
+            azure_deployment="text-embedding-3-large",  # Deploy this embedding model in Azure OpenAI if not already (similar to GPT deployment)
+            openai_api_version="2024-02-01",  # Adjust to latest
+        )
+    return _embeddings
+
+def get_vector_store():
+    """Get Azure Search vector store with lazy initialization."""
+    global _vector_store
+    if _vector_store is None:
+        _vector_store = AzureSearch(
+            azure_search_endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
+            azure_search_key=os.getenv("AZURE_SEARCH_ADMIN_KEY"),
+            index_name="bc-water-index",  # Create if doesn't exist
+            embedding_function=get_embeddings().embed_query,
+            search_type="hybrid",  # Enables vector + keyword
+        )
+    return _vector_store
+
+# For backward compatibility
+def vector_store():
+    return get_vector_store()
+
+def embeddings():
+    return get_embeddings()
 
 
 def process_document_with_intelligence(blob_name, blob_data):
