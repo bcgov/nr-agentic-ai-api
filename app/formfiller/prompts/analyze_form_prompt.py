@@ -28,7 +28,7 @@ Instructions:
       "data_id": "<string>",
       "fieldLabel": "<string>",
       "fieldType": "<string>",
-      "fieldValue": <value or null>,
+      "fieldValue": <value or null>, // PRESERVE original value - don't change to null
       "is_required": true,
       "options": <list of options if applicable>,
       "validation_message": "<reason this field is missing or invalid>"
