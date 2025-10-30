@@ -54,7 +54,7 @@ class FormField(TypedDict):
     fieldType: str  # input, select, radio, checkbox, textarea, etc. - Corresponds to fieldType
     fieldValue: Optional[str]  # Corresponds to fieldValue in the API model
     required: bool  # Corresponds to is_required in the API model
-    options: Optional[List[str]]  # For dropdown, radio, etc. - Same in API model
+    options: Optional[List[Dict[str, str]]]  # For dropdown, radio, etc. - Objects with key/value pairs
     description: Optional[str]  # Help text - Not in API model but preserved
     validation: Optional[str]  # Validation rules - Not in API model but preserved
 
