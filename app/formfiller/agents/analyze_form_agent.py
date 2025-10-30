@@ -1,10 +1,10 @@
-from ..llm_client import llm
+from ..llm_client import get_llm
 from app.formfiller.prompts.analyze_form_prompt import analyze_form_prompt 
 from langchain.chains import LLMChain
 
 # You don't need tools or ReAct agent
 analyze_form_executor = LLMChain(
-    llm=llm,
+    llm=get_llm(),
     prompt=analyze_form_prompt,
     verbose=True
 )

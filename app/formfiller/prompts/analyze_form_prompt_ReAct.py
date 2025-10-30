@@ -1,4 +1,4 @@
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 analyze_form_prompt = PromptTemplate.from_template("""
 You are an assistant that helps users with water licence applications and fee exemption requests in British Columbia.

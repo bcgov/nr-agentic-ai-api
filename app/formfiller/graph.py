@@ -7,9 +7,8 @@ import os
 from typing import Dict, List, Any, Optional, TypedDict, Literal,Union
 from uuid import uuid4
 from dotenv import load_dotenv
-from .llm_client import llm as model
+from .llm_client import get_llm
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from langchain_openai import AzureChatOpenAI
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
 import traceback
@@ -26,14 +25,6 @@ def search_tool(query: str) -> str:
         return ai_search_tool(query)
 # Load environment variables
 load_dotenv()
-
-# Initialize the model
-model = AzureChatOpenAI(
-    azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT"),
-    azure_deployment=os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME"),
-    openai_api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
-)
-
 
 # Create a checkpointer for persistence
 checkpointer = MemorySaver()
