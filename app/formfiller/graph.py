@@ -4,7 +4,7 @@ This module defines the core agent logic and workflow for auto-filling forms
 based on user input and interactive form field completion.
 """
 import os
-from typing import Dict, List, Any, Optional, TypedDict, Literal
+from typing import Dict, List, Any, Optional, TypedDict, Literal,Union
 from uuid import uuid4
 from dotenv import load_dotenv
 from .llm_client import llm as model
@@ -52,7 +52,7 @@ class FormField(TypedDict):
     field_id: str  # Corresponds to data_id in the API model
     fieldLabel: str  # Corresponds to fieldLabel in the API model
     fieldType: str  # input, select, radio, checkbox, textarea, etc. - Corresponds to fieldType
-    fieldValue: Optional[str]  # Corresponds to fieldValue in the API model
+    fieldValue: Optional[Union[str, List[str]]]  # Corresponds to fieldValue in the API model
     required: bool  # Corresponds to is_required in the API model
     options: Optional[List[Dict[str, str]]]  # For dropdown, radio, etc. - Objects with key/value pairs
     description: Optional[str]  # Help text - Not in API model but preserved
@@ -106,6 +106,21 @@ def extract_json_from_output(output: str):
             "raw_output": json_str
         }
 
+def is_field_filled(field_value) -> bool:
+    """
+    Check if a field value is properly filled.
+    Returns False for None, empty string, empty list, or empty dict.
+    """
+    if field_value is None:
+        return False
+    if field_value == "":
+        return False
+    if isinstance(field_value, list) and len(field_value) == 0:
+        return False
+    if isinstance(field_value, dict) and len(field_value) == 0:
+        return False
+    return True
+
 # Node 1: Initial form analysis: orchestrator node
 async def analyze_form(state: FormFillerState) -> FormFillerState:
     """
@@ -121,7 +136,7 @@ async def analyze_form(state: FormFillerState) -> FormFillerState:
     status = state.get("status", "in_progress")
     response_message = state.get("response_message", "")
     thread_id = state.get("thread_id", str(uuid4()))
-
+    #import pdb; pdb.set_trace()
     # Add conversation history summary for context if available, but avoid duplicate 'content' keys
     if conversation_history:
         history_context = "Previous conversation:\n"
@@ -179,8 +194,9 @@ async def analyze_form(state: FormFillerState) -> FormFillerState:
     # Build a set of data_ids in form_fields with non-empty fieldValue
     filled_data_ids = set()
     for f in form_fields:
-        if isinstance(f, dict) and f.get('data_id') and f.get('fieldValue') not in (None, ""):
-            filled_data_ids.add(f['data_id'])
+        if isinstance(f, dict) and f.get('data_id'):
+            if is_field_filled(f.get('fieldValue')):
+                filled_data_ids.add(f['data_id'])
     # Support both str and dict in missing_fields
     missing_fields = []
     for f in raw_missing_fields:
@@ -307,8 +323,9 @@ async def process_field_input(state: FormFillerState) -> FormFillerState:
             # Filter missing_fields: remove any whose data_id exists in form_fields and fieldValue is not empty
             filled_data_ids = set()
             for ff in form_fields:
-                if isinstance(ff, dict) and ff.get('data_id') and ff.get('fieldValue') not in (None, ""):
-                    filled_data_ids.add(ff['data_id'])
+                if isinstance(ff, dict) and ff.get('data_id'):
+                    if is_field_filled(ff.get('fieldValue')):
+                        filled_data_ids.add(ff['data_id'])
             filtered_missing_fields = []
             for f in missing_fields:
                 if isinstance(f, dict):

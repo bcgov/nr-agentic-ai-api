@@ -73,21 +73,54 @@ app/formfiller/
 ### Prerequisites
 
 - Python 3.9 or higher
+- [uv](https://docs.astral.sh/uv/) package manager (recommended)
 - Azure OpenAI service account with deployment
 - Optional: Redis instance for conversation persistence
 
-### Dependencies
+### Installing uv
 
-Install the required packages using pip or uv:
+If you don't have uv installed, install it first:
+
+```bash
+# macOS and Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or using pip
+pip install uv
+```
+
+### Project Setup with uv
+
+1. **Clone the repository and navigate to the project directory**
+   ```bash
+   git clone <repository-url>
+   cd nr-agentic-ai-api/app
+   ```
+
+2. **Initialize the project with uv** (if not already done)
+   ```bash
+   uv init
+   ```
+
+3. **Install dependencies using uv**
+   ```bash
+   uv add langchain langchain-openai langgraph fastapi uvicorn pydantic python-dotenv redis
+   ```
+
+4. **Sync all dependencies**
+   ```bash
+   uv sync
+   ```
+
+### Alternative: Traditional pip installation
+
+If you prefer using pip:
 
 ```bash
 pip install langchain langchain-openai langgraph fastapi uvicorn pydantic python-dotenv redis
-```
-
-Or using uv (recommended):
-
-```bash
-uv add langchain langchain-openai langgraph fastapi uvicorn pydantic python-dotenv redis
 ```
 
 ### Environment Configuration
@@ -104,44 +137,134 @@ AZURE_OPENAI_API_VERSION=2024-12-01-preview
 # REDIS_URL=redis://localhost:6379
 ```
 
-### Local Development Setup
+### Complete Setup Guide with uv
 
-1. **Clone the repository and navigate to the project directory**
+1. **Install uv** (if not already installed)
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
 
-2. **Install dependencies** using the commands above
+2. **Clone and setup the project**
+   ```bash
+   git clone <repository-url>
+   cd nr-agentic-ai-api  # Navigate to project root, not app subdirectory
+   ```
 
-3. **Configure environment variables** as shown in the Environment Configuration section
+3. **Create virtual environment and install dependencies**
+   ```bash
+   # Create and activate virtual environment
+   uv venv
+   
+   # Activate the virtual environment
+   # On macOS/Linux:
+   source .venv/bin/activate
+   # On Windows:
+   # .venv\Scripts\activate
+   
+   # Install all dependencies
+   uv sync
+   ```
 
-4. **Optional: Set up Redis for persistence**
+4. **Configure environment variables**
+   ```bash
+   # Copy the example environment file (if it exists)
+   cp app/env.example app/.env
+   # Or create a new .env file in the app directory with your Azure OpenAI credentials
+   ```
+
+5. **Optional: Set up Redis for conversation persistence**
    ```bash
    # Using Docker
    docker run -d --name redis -p 6379:6379 redis
+   
+   # Or using uv to run Redis in the project environment
+   # Add redis to your dependencies and configure connection
    ```
 
-5. **Test the setup**
+6. **Run the application**
    ```bash
-   python -m app.formfiller.api
+   # Run the main FastAPI application (from project root)
+   uv run python -m app.main
+   
+   # Or run just the form-filling API
+   uv run python -m app.formfiller.api
+   
+   # For development with auto-reload
+   uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
+
+### Development Workflow with uv
+
+- **Add new dependencies**: `uv add package-name`
+- **Add development dependencies**: `uv add --dev package-name`
+- **Remove dependencies**: `uv remove package-name`
+- **Update dependencies**: `uv sync --upgrade`
+- **Run scripts**: `uv run python script.py`
+- **Install from requirements**: `uv pip install -r requirements.txt`
 
 ## Usage
 
-### Integration with FastAPI Application
+### Running with uv (Recommended)
 
-The form-filling agent is integrated into the main FastAPI application. Start the server:
+**Important**: All commands should be run from the project root directory (`nr-agentic-ai-api`), not from the `app` subdirectory.
 
+#### Start the Complete Application
 ```bash
-python -m app.main
+# Make sure you're in the project root directory
+cd nr-agentic-ai-api
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Run the main FastAPI application (includes form-filling agent)
+uv run python -m app.main
+
+# Or with auto-reload for development
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The agent endpoints are available at `/api/form/` prefix.
+#### Run Form-Filling Agent Only
+```bash
+# Run just the form-filling API independently (from project root)
+uv run python -m app.formfiller.api
 
-### Direct API Usage
+# Or with uvicorn for better development experience
+uv run uvicorn app.formfiller.api:app --reload --host 0.0.0.0 --port 8001
+```
 
-You can also run the form-filling API independently:
+#### Development Commands
+```bash
+# Run tests (from project root)
+uv run pytest
+
+# Run with specific environment
+uv run --env-file app/.env python -m app.main
+
+# Run with debugging
+uv run python -m debugpy --listen 5678 --wait-for-client -m app.main
+```
+
+### Traditional Python Commands
+
+If you prefer using activated virtual environment directly:
 
 ```bash
+# Activate virtual environment first (from project root)
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Run the application
+python -m app.main
+
+# Or run form-filling API only
 python -m app.formfiller.api
 ```
+
+### Application Endpoints
+
+Once running, the application will be available at:
+
+- **Main API**: `http://localhost:8000`
+- **Form-filling endpoints**: `http://localhost:8000/api/form/`
+- **API Documentation**: `http://localhost:8000/docs`
+- **Health check**: `http://localhost:8000/health`
 
 ## API Reference
 
