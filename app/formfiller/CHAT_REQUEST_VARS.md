@@ -95,6 +95,11 @@ Developer notes: ??
 - Use `data_id` to dedupe when appending. The graph code already dedupes by `data_id` before appending.
 - Consider storing `confidence` or `source` (e.g., `ai`, `user`, `server`) if you need provenance.
 
+Frontend session note:
+- Because the current implementation stores session or transient data in the frontend, every request payload must include the latest full form state (all `form_fields`, `filled_fields`, etc.).
+- This means the frontend must send the complete payload on each call so the backend has the canonical view of the current session. You can remove this requirement once session management is moved to the backend (persistent session store keyed by `thread_id`).
+- Implementation tip: on the frontend, after the AI agent updates the HTML form with values from `filled_fields`, the frontend should merge those values into `form_fields` and then clear (empty) `filled_fields` from the payload before the next user-initiated request. This prevents duplicate submissions and keeps the payload minimal.
+
 ---
 
 ### `missing_fields`
