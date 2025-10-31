@@ -1,13 +1,24 @@
-from ..llm_client import llm
+from ..llm_client import get_llm
 from app.formfiller.prompts.analyze_form_prompt import analyze_form_prompt 
 from langchain.chains import LLMChain
 
-# You don't need tools or ReAct agent
-analyze_form_executor = LLMChain(
-    llm=llm,
-    prompt=analyze_form_prompt,
-    verbose=True
-)
+# Create a function that returns the LLMChain lazily
+def get_analyze_form_executor():
+    return LLMChain(
+        llm=get_llm(),
+        prompt=analyze_form_prompt,
+        verbose=True
+    )
+
+# For backward compatibility, create a property-like access
+class AnalyzeFormExecutor:
+    def __getattr__(self, name):
+        return getattr(get_analyze_form_executor(), name)
+    
+    def __call__(self, *args, **kwargs):
+        return get_analyze_form_executor()(*args, **kwargs)
+
+analyze_form_executor = AnalyzeFormExecutor()
 # ReAct agent for future development
 # from app.llm.tools.ai_search_tool import ai_search_tool
 # from ..llm_client import llm

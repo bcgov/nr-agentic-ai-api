@@ -1,9 +1,50 @@
-.venv
+# Python
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+.pytest_cache/
+
+# Environment and config files
+.env
+.env.local
+.env.example
+env.example
+
+# Database and logs
 *.db
 *.sqlite3
 *.log
-*.env
+logs/
+
+# Development files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+test_*.py
+*_test.py
+tests/
+
+# Documentation and examples (keep README.md for pyproject.toml)
+INTEGRATION_GUIDE.md
+ENVIRONMENT_CONFIG.md
+AZURE_DEPLOYMENT.md
+
+# Jupyter notebooks
+*.ipynb
+ipynb/
+notebook/
+
+# HTTP test files
+*.http
+test.http
+
+# Git
+.git/
+.gitignore

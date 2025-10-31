@@ -9,6 +9,8 @@ Field Details:
 - Field ID: {data_id}
 - Field Label: {fieldLabel}
 - Field Type: {fieldType}
+- Field value: {fieldValue}
+- options (for radio fields): {options}
 - Required: {is_required}
 - Validation Message: {validation_message}
 
