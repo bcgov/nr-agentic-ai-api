@@ -25,7 +25,6 @@ class ChatResponse(BaseModel):
     thread_id: str
     response_message: str
     status: str
-    form_fields: Optional[list] = None
     filled_fields: Optional[List[Dict[str, Any]]] = None
     missing_fields: Optional[list] = None
     current_field: Optional[list] = None
@@ -103,7 +102,6 @@ async def chat_endpoint(request: ChatRequest):
             thread_id=result.get("thread_id", ""),
             response_message=result.get("response_message", ""),
             status=result.get("status", ""),
-            form_fields=form_fields,
             filled_fields=filled_fields,
             missing_fields=result.get("missing_fields", []),
             current_field=current_field,
